@@ -2,8 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Upco Homey</title>
+<meta name="theme-color" content="#10284A"/>
+<link rel="icon" type="image/png" href="icon-192.png"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<link rel="manifest" href="manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -15,9 +19,26 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#F4F7FB;font-size:1
 input,select,button,textarea{font-family:inherit;font-size:16px}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:99px}
+/* ── Pantalla de inicio (splash) ── */
+#splash{position:fixed;inset:0;z-index:9999;background:#10284A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .6s ease}
+#splash.oculto{opacity:0;pointer-events:none}
+#splash .marco{background:#fff;border-radius:28px;padding:30px 38px;box-shadow:0 20px 60px rgba(0,0,0,.35);opacity:0;transform:scale(.82) translateY(8px);animation:splashLogo .9s cubic-bezier(.2,.7,.3,1) .15s forwards}
+#splash .marco img{display:block;width:200px;max-width:60vw;height:auto}
+#splash .slogan{color:#F59E0B;font-family:'Inter',sans-serif;font-size:18px;font-weight:700;letter-spacing:.5px;opacity:0;animation:splashTexto .6s ease .85s forwards}
+#splash .barra{width:120px;height:4px;border-radius:99px;background:rgba(255,255,255,.18);overflow:hidden;opacity:0;animation:splashTexto .4s ease 1s forwards}
+#splash .barra i{display:block;height:100%;width:40%;border-radius:99px;background:#F59E0B;animation:splashCarga 1.1s ease-in-out .9s infinite}
+@keyframes splashLogo{to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes splashTexto{to{opacity:1}}
+@keyframes splashCarga{0%{margin-left:-40%}100%{margin-left:120%}}
 </style>
 </head>
 <body>
+<!-- Pantalla de inicio: se oculta sola cuando carga la app -->
+<div id="splash">
+  <div class="marco"><img src="logo-upco.png" alt="UPCO"/></div>
+  <div class="slogan">Subimos juntos</div>
+  <div class="barra"><i></i></div>
+</div>
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useRef}=React;
@@ -1900,6 +1921,14 @@ function App(){
   </div>;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+// Oculta la pantalla de inicio una vez que la app está montada (mínimo 1.8s para que se vea la animación).
+window.addEventListener("load",()=>{
+  setTimeout(()=>{
+    const s=document.getElementById("splash");
+    if(s){s.classList.add("oculto");setTimeout(()=>s.remove(),700);}
+  },1800);
+});
 </script>
 </body>
 </html>
