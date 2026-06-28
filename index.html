@@ -245,9 +245,27 @@ const PATHS={
   herramientas:<><path d="M14.7 6.3a3.7 3.7 0 0 0-4.9 4.6l-6 6a1.8 1.8 0 0 0 2.6 2.6l6-6a3.7 3.7 0 0 0 4.6-4.9l-2.3 2.3-2.1-2.1z"/></>,
   productos:<><path d="M4 7h16v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M4 12h16"/></>,
   campana:<><path d="M18 8.5a6 6 0 0 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></>,
+  tarjeta:<><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/><path d="M6 14.5h4"/></>,
+  escudo:<><path d="M12 3 5 6v5.5c0 4.3 3 7.5 7 9 4-1.5 7-4.7 7-9V6z"/><path d="M9.3 12l1.8 1.8 3.6-3.8"/></>,
+  tendencia:<><path d="M3 16.5 9.5 10l3.5 3.5L21 6"/><path d="M16.5 6H21v4.5"/></>,
+  luz:<><path d="M9.2 18h5.6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.4c.8.8 1.2 1.5 1.3 2.6h5.4c.1-1.1.5-1.8 1.3-2.6A6 6 0 0 0 12 3z"/></>,
+  agua:<><path d="M12 3.5s6 6.3 6 10.5a6 6 0 0 1-12 0c0-4.2 6-10.5 6-10.5z"/></>,
+  gas:<><path d="M12 3c2.6 3 4.2 5.2 4.2 8.2A4.2 4.2 0 0 1 7.8 11.2c0-1.1.3-2 .9-2.8.2 1 .8 1.6 1.6 1.8C10 8 11 5.4 12 3z"/></>,
+  meta:<><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r="1"/></>,
+  cart:<><circle cx="9.5" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/><path d="M2.5 4h2.2l2.2 11.1a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.2L20 8H6.2"/></>,
+  grafico:<><path d="M4.5 20V11"/><path d="M10 20V4.5"/><path d="M15.5 20v-6.5"/><path d="M21 20H3"/></>,
+  semaforo:<><rect x="8" y="3" width="8" height="18" rx="4"/><circle cx="12" cy="8" r="1.3"/><circle cx="12" cy="12.5" r="1.3"/><circle cx="12" cy="17" r="1.3"/></>,
+  lupa:<><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.7-3.7"/></>,
+  check:<><circle cx="12" cy="12" r="8.5"/><path d="M8.4 12.4l2.6 2.6 4.6-5.2"/></>,
+  pin:<><path d="M3.6 12.4 11 5a2 2 0 0 1 1.4-.6H19A1.5 1.5 0 0 1 20.5 6v6.6a2 2 0 0 1-.6 1.4l-7.4 7.4a1.5 1.5 0 0 1-2.1 0l-6.8-6.8a1.5 1.5 0 0 1 0-2.2z"/><circle cx="16" cy="8" r="1.2"/></>,
 };
+// Mapa de tipo de recordatorio -> nombre de icono SVG
+const TIPO_ICO={tarjeta:"tarjeta",seguro:"escudo",seguro_auto:"auto",vehiculo:"auto",inversion:"tendencia",servicio:"luz",renta:"hogar",otro:"pin"};
 function Ico({name,size=24,color="currentColor",stroke=2}){
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{display:"block",flexShrink:0}}>{PATHS[name]||PATHS.mas}</svg>;
+}
+function IcoTipo({tipo,size=24,color="#10284A",stroke=2}){
+  return <Ico name={TIPO_ICO[tipo]||"pin"} size={size} color={color} stroke={stroke}/>;
 }
 // Monograma de marca: "H" ámbar sobre navy redondeado
 function Monograma({size=38,radio=11}){
@@ -291,7 +309,7 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
       </div>
       {urgentes.map(r=><div key={r.id} onClick={()=>irA(r.area==="hogar"?"hogar":"dinero")}
         style={{display:"flex",alignItems:"center",gap:14,background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
-        <div style={{width:48,height:48,borderRadius:12,background:"#fee2e2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</div>
+        <div style={{width:48,height:48,borderRadius:12,background:"#fee2e2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><IcoTipo tipo={r.tipo} size={24} color="#dc2626"/></div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:16,fontWeight:600,color:"#0a1c35"}}>{r.titulo}</div>
           <div style={{fontSize:14,color:"#dc2626",marginTop:2,fontWeight:500}}>Vence hoy</div>
@@ -306,7 +324,7 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
         const dias=diasPara(r.fecha);
         return <div key={r.id} onClick={()=>irA(r.area==="hogar"?"hogar":"dinero")}
           style={{display:"flex",alignItems:"center",gap:14,background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:14,padding:"12px 16px",marginBottom:8,cursor:"pointer"}}>
-          <span style={{fontSize:24,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</span>
+          <div style={{flexShrink:0}}><IcoTipo tipo={r.tipo} size={24} color="#d97706"/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:15,fontWeight:600,color:"#0a1c35",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.titulo}</div>
             <div style={{fontSize:13,color:"#8FA0B4",marginTop:2}}>{fechaCorta(r.fecha)}</div>
@@ -344,7 +362,7 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
 
     <button onClick={()=>setVerResumen(true)}
       style={{width:"100%",background:"#0a1c35",border:"none",borderRadius:16,padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:16}}>
-      <div style={{width:50,height:50,borderRadius:14,background:"rgba(255,255,255,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>📈</div>
+      <div style={{width:50,height:50,borderRadius:14,background:"rgba(255,255,255,.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="tendencia" size={24} color="#F59E0B"/></div>
       <div style={{textAlign:"left",flex:1}}>
         <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>Ver mi resumen financiero</div>
         <div style={{fontSize:13,color:"rgba(255,255,255,.6)",marginTop:2}}>Presupuesto, metas y próximos pagos</div>
@@ -378,7 +396,7 @@ function ResumenFinanciero({presupuesto,metas,recordatorios,irA}){
       proximos30.slice(0,4).map(r=>{
         const dias=diasPara(r.fecha),u=urgencia(dias);
         return <div key={r.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,background:u.fondo,marginBottom:8}}>
-          <span style={{fontSize:22}}>{ICONOS_TIPO[r.tipo]||"📌"}</span>
+          <div style={{flexShrink:0}}><IcoTipo tipo={r.tipo} size={22} color="#10284A"/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:15,fontWeight:600,color:"#0a1c35",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.titulo}</div>
             <div style={{fontSize:13,color:"#8FA0B4",marginTop:1}}>{fechaCorta(r.fecha)}</div>
@@ -499,7 +517,7 @@ function Recordatorios({recordatorios,setRecordatorios,accion,onConsumirAccion})
     </div>
 
     {seguros.length>0&&<div style={{background:"linear-gradient(135deg,#10284A,#1a3a6e)",borderRadius:14,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
-      <div style={{width:48,height:48,borderRadius:12,background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🚗</div>
+      <div style={{width:48,height:48,borderRadius:12,background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="auto" size={26} color="#F59E0B"/></div>
       <div style={{flex:1}}>
         <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{seguros.length} seguro{seguros.length>1?"s":""} de auto registrado{seguros.length>1?"s":""}</div>
         <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:2}}>
@@ -531,8 +549,8 @@ function Recordatorios({recordatorios,setRecordatorios,accion,onConsumirAccion})
         const vencePronto=dias<=30;
         return <div key={r.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${esSeguro?"#bfdbfe":u.borde}`,padding:"16px",borderLeft:`5px solid ${esSeguro?"#1a3a6e":u.dot}`}}>
           <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:50,height:50,borderRadius:12,background:esSeguro?"#eff6ff":u.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>
-              {ICONOS_TIPO[r.tipo]||"📌"}
+            <div style={{width:50,height:50,borderRadius:12,background:esSeguro?"#eff6ff":u.fondo,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <IcoTipo tipo={r.tipo} size={26} color={esSeguro?"#10284A":u.texto}/>
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:3}}>{r.titulo}</div>
@@ -1135,10 +1153,10 @@ function MiDinero({recordatorios,setRecordatorios,presupuesto,setPresupuesto,met
 
 // ── MÓDULO: MI HOGAR ──────────────────────────────────────────
 const SERVICIOS_HOGAR=[
-  {tipo:"luz",icono:"💡",nombre:"Luz (CFE)",color:"#f59e0b"},
-  {tipo:"agua",icono:"🚰",nombre:"Agua",color:"#06b6d4"},
-  {tipo:"gas",icono:"🔥",nombre:"Gas",color:"#ef4444"},
-  {tipo:"renta",icono:"🏠",nombre:"Renta / Hipoteca",color:"#10284A"},
+  {tipo:"luz",icono:"luz",nombre:"Luz (CFE)",color:"#f59e0b"},
+  {tipo:"agua",icono:"agua",nombre:"Agua",color:"#06b6d4"},
+  {tipo:"gas",icono:"gas",nombre:"Gas",color:"#ef4444"},
+  {tipo:"renta",icono:"hogar",nombre:"Renta / Hipoteca",color:"#10284A"},
 ];
 function MiHogar({recordatorios,setRecordatorios,accion,onConsumirAccion}){
   const[modalNuevo,setModalNuevo]=useState(false);
@@ -1172,7 +1190,7 @@ function MiHogar({recordatorios,setRecordatorios,accion,onConsumirAccion}){
       {SERVICIOS_HOGAR.map(s=>{
         const prox=proximoDeTipo(s.tipo);
         return <div key={s.tipo} style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:16,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
-          <div style={{width:46,height:46,borderRadius:14,background:s.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{s.icono}</div>
+          <div style={{width:46,height:46,borderRadius:14,background:s.color+"20",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 10px ${s.color}22`}}><Ico name={s.icono} size={24} color={s.color} stroke={2.2}/></div>
           <div style={{fontSize:15,fontWeight:700,color:"#0a1c35"}}>{s.nombre}</div>
           {prox?<div>
             <div style={{fontSize:13,color:"#8FA0B4"}}>Próximo: {fechaCorta(prox.fecha)}</div>
@@ -1192,7 +1210,7 @@ function MiHogar({recordatorios,setRecordatorios,accion,onConsumirAccion}){
         const dias=diasPara(r.fecha),u=urgencia(dias);
         return <div key={r.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${u.borde}`,padding:"16px",borderLeft:`5px solid ${u.dot}`}}>
           <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:50,height:50,borderRadius:12,background:u.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</div>
+            <div style={{width:50,height:50,borderRadius:12,background:u.fondo,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><IcoTipo tipo={r.tipo} size={26} color={u.texto}/></div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:3}}>{r.titulo}</div>
               <div style={{fontSize:14,color:"#8FA0B4",marginBottom:4}}>{fechaLarga(r.fecha)} · {r.cada_cuando}</div>
@@ -1318,7 +1336,7 @@ function MiAuto({autos,setAutos,accion,onConsumirAccion}){
 
     {/* Hoy No Circula */}
     <div style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"16px",marginBottom:16}}>
-      <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:10}}>🚦 Hoy No Circula</div>
+      <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:10,display:"flex",alignItems:"center",gap:8}}><Ico name="semaforo" size={20} color="#10284A"/> Hoy No Circula</div>
       {dia
         ?<div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
           <div style={{fontSize:15,color:"#dc2626",fontWeight:700}}>No circula los días: {dia}</div>
@@ -1336,7 +1354,7 @@ function MiAuto({autos,setAutos,accion,onConsumirAccion}){
 
     {/* Verificación */}
     <div style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"16px",marginBottom:16}}>
-      <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:10}}>🔍 Verificación vehicular</div>
+      <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:10,display:"flex",alignItems:"center",gap:8}}><Ico name="lupa" size={20} color="#10284A"/> Verificación vehicular</div>
       <div style={{display:"flex",alignItems:"center",gap:12,background:eng.hex+"15",border:`1.5px solid ${eng.hex}55`,borderRadius:10,padding:"12px 14px"}}>
         <div style={{width:14,height:14,borderRadius:"50%",background:eng.hex,flexShrink:0}}/>
         <div>
@@ -1350,7 +1368,7 @@ function MiAuto({autos,setAutos,accion,onConsumirAccion}){
     {/* Mantenimiento */}
     <div style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"16px",marginBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>🔧 Mantenimiento</div>
+        <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",display:"flex",alignItems:"center",gap:8}}><Ico name="herramientas" size={20} color="#10284A"/> Mantenimiento</div>
         <button onClick={()=>setModalServicio(true)} style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Registrar servicio</button>
       </div>
       {autoActivo.km_proximo_servicio>0?<>
@@ -1377,7 +1395,7 @@ function MiAuto({autos,setAutos,accion,onConsumirAccion}){
 
     {/* Cotizador de seguro */}
     <div style={{background:"linear-gradient(135deg,#10284A,#1a3a6e)",borderRadius:14,padding:"16px",display:"flex",alignItems:"center",gap:12}}>
-      <span style={{fontSize:28}}>🛡️</span>
+      <Ico name="escudo" size={28} color="#F59E0B"/>
       <div style={{flex:1}}>
         <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>¿Quieres cotizar el seguro de este auto?</div>
         <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:2}}>Comparamos varias aseguradoras por ti</div>
@@ -1822,12 +1840,12 @@ function BotonMasFlotante({onAbrir}){
 function MenuAgregar({open,onClose,onElegir}){
   if(!open)return null;
   const OPCIONES=[
-    {id:"nuevo_pago",icono:"💳",nombre:"Nuevo pago o recordatorio",desc:"Tarjeta, seguro, inversión..."},
-    {id:"nuevo_servicio_hogar",icono:"🏡",nombre:"Recordatorio del hogar",desc:"Luz, agua, gas, renta / hipoteca"},
-    {id:"nueva_meta",icono:"🎯",nombre:"Nueva meta de ahorro",desc:"Para lo que estás juntando dinero"},
-    {id:"nueva_lista",icono:"🛒",nombre:"Nueva lista de compras",desc:"Para tu próxima compra"},
-    {id:"nueva_categoria",icono:"📊",nombre:"Nueva categoría de gasto",desc:"Para tu presupuesto"},
-    {id:"nuevo_auto",icono:"🚗",nombre:"Registrar un auto",desc:"Hasta 5 autos"},
+    {id:"nuevo_pago",icono:"tarjeta",nombre:"Nuevo pago o recordatorio",desc:"Tarjeta, seguro, inversión..."},
+    {id:"nuevo_servicio_hogar",icono:"hogar",nombre:"Recordatorio del hogar",desc:"Luz, agua, gas, renta / hipoteca"},
+    {id:"nueva_meta",icono:"meta",nombre:"Nueva meta de ahorro",desc:"Para lo que estás juntando dinero"},
+    {id:"nueva_lista",icono:"cart",nombre:"Nueva lista de compras",desc:"Para tu próxima compra"},
+    {id:"nueva_categoria",icono:"grafico",nombre:"Nueva categoría de gasto",desc:"Para tu presupuesto"},
+    {id:"nuevo_auto",icono:"auto",nombre:"Registrar un auto",desc:"Hasta 5 autos"},
   ];
   return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
     <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"24px 20px 32px",width:"100%",maxWidth:540,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -1836,7 +1854,7 @@ function MenuAgregar({open,onClose,onElegir}){
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {OPCIONES.map(o=><button key={o.id} onClick={()=>onElegir(o.id)}
           style={{background:"#f8fafc",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14}}>
-          <div style={{width:46,height:46,borderRadius:12,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,border:"1px solid #DDE4EE"}}>{o.icono}</div>
+          <div style={{width:46,height:46,borderRadius:12,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name={o.icono} size={23} color="#10284A" stroke={2.2}/></div>
           <div style={{flex:1}}>
             <div style={{fontSize:15,fontWeight:700,color:"#0a1c35"}}>{o.nombre}</div>
             <div style={{fontSize:13,color:"#8FA0B4",marginTop:2}}>{o.desc}</div>
@@ -1918,7 +1936,7 @@ function App(){
 
     {pantalla==="inicio"&&hoyEsDiaDeNoCircular&&<div style={{maxWidth:600,margin:"16px auto 0",padding:"0 16px"}}>
       <div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-        <span style={{fontSize:28}}>🚦</span>
+        <Ico name="semaforo" size={28} color="#dc2626"/>
         <div>
           <div style={{fontSize:15,fontWeight:700,color:"#dc2626"}}>Hoy no circula tu {autoPrincipal.marca} {autoPrincipal.modelo}</div>
           <div style={{fontSize:13,color:"#8FA0B4",marginTop:2}}>Por terminación de placa {terminacion(autoPrincipal.placas)} — evita la multa</div>
