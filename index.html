@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Upco Homey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,sans-serif;background:#f4f6f9;font-size:16px}
+input,select,button,textarea{font-family:inherit;font-size:16px}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:99px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef}=React;
+
+// ── DATOS DE EJEMPLO ─────────────────────────────────────────
+const USUARIO={name:"Rodrigo Méndez",plan:"plus"};
+
+const initRecordatorios=[
+  {id:1,titulo:"Tarjeta BBVA",tipo:"tarjeta",area:"dinero",fecha:"2026-06-28",monto:3400,cada_cuando:"Cada mes",notas:"Fecha de corte el día 20"},
+  {id:2,titulo:"Seguro del coche GNP",tipo:"seguro_auto",area:"dinero",fecha:"2026-07-15",monto:8200,cada_cuando:"Cada año",notas:"Póliza #GNP-2029-887",auto:{marca:"Nissan",modelo:"Tsuru",anio:"2019",placas:"PKT-24-B",aseguradora:"GNP",prima:8200,cobertura:"Amplia",cp:""}},
+  {id:3,titulo:"Verificación del coche",tipo:"vehiculo",area:"dinero",fecha:"2026-08-01",monto:450,cada_cuando:"Cada año",notas:"Terminación de placa 4"},
+  {id:4,titulo:"Pagaré Banorte",tipo:"inversion",area:"dinero",fecha:"2026-07-03",monto:50000,cada_cuando:"Una sola vez",notas:"Tasa 11.5% — ir a renovar o retirar"},
+  {id:5,titulo:"Luz CFE",tipo:"servicio",area:"hogar",fecha:"2026-07-10",monto:680,cada_cuando:"Cada 2 meses",notas:""},
+  {id:6,titulo:"Renta del depa",tipo:"renta",area:"hogar",fecha:"2026-07-01",monto:9500,cada_cuando:"Cada mes",notas:""},
+];
+
+const initPresupuesto={
+  ingreso:28000,
+  categorias:[
+    {id:1,nombre:"Renta / Hipoteca",limite:8000,gastado:8000,color:"#6366f1",icono:"🏠"},
+    {id:2,nombre:"Comida",limite:5000,gastado:3800,color:"#f59e0b",icono:"🛒"},
+    {id:3,nombre:"Transporte",limite:2500,gastado:2100,color:"#10b981",icono:"🚗"},
+    {id:4,nombre:"Entretenimiento",limite:1500,gastado:1900,color:"#ef4444",icono:"🎬"},
+    {id:5,nombre:"Ahorro",limite:5600,gastado:2000,color:"#8b5cf6",icono:"💰"},
+    {id:6,nombre:"Servicios",limite:2000,gastado:1200,color:"#06b6d4",icono:"💡"},
+  ],
+};
+
+const initListas=[
+  {id:1,nombre:"Super semanal",tienda:"Walmart",limite:800,fecha:"2026-06-15",estado:"cerrada",
+   productos:[{id:1,nombre:"Leche",cantidad:2,unidad:"litros",precio:28,listo:true},{id:2,nombre:"Pollo",cantidad:1.5,unidad:"kg",precio:85,listo:true},{id:3,nombre:"Pan integral",cantidad:1,unidad:"pieza",precio:50,listo:true}]},
+  {id:2,nombre:"Despensa quincenal",tienda:"Costco",limite:2500,fecha:"2026-06-20",estado:"cerrada",
+   productos:[{id:1,nombre:"Aceite",cantidad:2,unidad:"litros",precio:90,listo:true},{id:2,nombre:"Arroz",cantidad:5,unidad:"kg",precio:75,listo:true}]},
+];
+
+const initMetas=[
+  {id:1,nombre:"Fondo de emergencia",meta:84000,ahorrado:22000,fecha_limite:"2026-12-31",color:"#10b981",icono:"🛡️"},
+  {id:2,nombre:"Vacaciones Cancún",meta:18000,ahorrado:6500,fecha_limite:"2026-11-15",color:"#f59e0b",icono:"✈️"},
+  {id:3,nombre:"MacBook nuevo",meta:35000,ahorrado:12000,fecha_limite:"2027-03-01",color:"#6366f1",icono:"💻"},
+];
+
+const initAutos=[
+  {id:1,marca:"Nissan",modelo:"Tsuru",anio:"2019",placas:"PKT-24-B",color:"Blanco",km_actual:68000,km_proximo_servicio:75000,
+   historial:[{id:1,fecha:"2026-03-10",tipo:"Cambio de aceite",km:62000,costo:1200},{id:2,fecha:"2025-10-02",tipo:"Frenos",km:55000,costo:2400}]},
+];
+
+// ── HELPERS ──────────────────────────────────────────────────
+const pesos=n=>new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0}).format(n);
+const diasPara=d=>{const h=new Date();h.setHours(0,0,0,0);return Math.ceil((new Date(d+"T00:00:00")-h)/86400000);};
+const fechaCorta=d=>new Date(d+"T00:00:00").toLocaleDateString("es-MX",{day:"numeric",month:"long"});
+const fechaLarga=d=>new Date(d+"T00:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
+const urgencia=dias=>{
+  if(dias<=0) return{fondo:"#fef2f2",texto:"#dc2626",borde:"#ef4444",etiqueta:"¡Hoy!",dot:"#ef4444"};
+  if(dias<=3) return{fondo:"#fef2f2",texto:"#dc2626",borde:"#ef4444",etiqueta:`${dias} día${dias>1?"s":""}`,dot:"#ef4444"};
+  if(dias<=7) return{fondo:"#fffbeb",texto:"#d97706",borde:"#f59e0b",etiqueta:`${dias} días`,dot:"#f59e0b"};
+  if(dias<=30)return{fondo:"#f0fdf4",texto:"#16a34a",borde:"#22c55e",etiqueta:`${dias} días`,dot:"#22c55e"};
+  return{fondo:"#f8fafc",texto:"#64748b",borde:"#e2e8f0",etiqueta:`${dias} días`,dot:"#94a3b8"};
+};
+const ICONOS_TIPO={tarjeta:"💳",seguro:"🛡️",seguro_auto:"🚗",vehiculo:"🚗",inversion:"📈",servicio:"💡",renta:"🏠",otro:"📌"};
+
+// Tabla simplificada Hoy No Circula CDMX (referencia general — verifica siempre el calendario oficial vigente)
+const HOY_NO_CIRCULA=[
+  {dia:"Lunes",terminaciones:["5","6"]},
+  {dia:"Martes",terminaciones:["7","8"]},
+  {dia:"Miércoles",terminaciones:["3","4"]},
+  {dia:"Jueves",terminaciones:["1","2"]},
+  {dia:"Viernes",terminaciones:["9","0"]},
+];
+const colorEngomado=anio=>{
+  const a=Number(anio);const hoy=new Date().getFullYear();const edad=hoy-a;
+  if(edad<=0) return{color:"Sin restricción (0)",hex:"#16a34a"};
+  if(edad<=8) return{color:"Verificación semestral estándar",hex:"#3b82f6"};
+  if(edad<=18) return{color:"Engomado por terminación de placa",hex:"#f59e0b"};
+  return{color:"Engomado — revisión más frecuente",hex:"#ef4444"};
+};
+
+// ── PERSISTENCIA LOCAL (localStorage) ────────────────────────
+// Carga un valor guardado; si no existe o falla, regresa el valor por defecto.
+const cargar=(clave,porDefecto)=>{
+  try{const v=localStorage.getItem("upco_"+clave);return v?JSON.parse(v):porDefecto;}
+  catch(e){console.log("cargar() error",clave,e);return porDefecto;}
+};
+
+// ── TRACKING A SUPABASE (con respaldo offline) ───────────────
+// Pega aquí tus credenciales de Supabase cuando las tengas.
+// Mientras estén vacías, los eventos solo se guardan localmente.
+const SUPABASE_URL="";       // ej: "https://xxxx.supabase.co"
+const SUPABASE_ANON_KEY="";  // tu anon/public key
+
+// Registra un evento de negocio: lo respalda en localStorage y lo intenta
+// enviar a Supabase. Nunca bloquea ni rompe la app (try/catch).
+async function trackEvent(evento,payload={}){
+  const registro={event:evento,user_id:"demo_user",payload,created_at:new Date().toISOString()};
+  // a) Respaldo local (clave: analytics_events)
+  try{
+    const prev=JSON.parse(localStorage.getItem("analytics_events")||"[]");
+    prev.push(registro);
+    localStorage.setItem("analytics_events",JSON.stringify(prev));
+  }catch(e){console.log("trackEvent: error guardando local",e);}
+  // b) Envío a Supabase (solo si hay credenciales)
+  try{
+    if(SUPABASE_URL&&SUPABASE_ANON_KEY){
+      await fetch(`${SUPABASE_URL}/rest/v1/analytics_events`,{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "apikey":SUPABASE_ANON_KEY,
+          "Authorization":`Bearer ${SUPABASE_ANON_KEY}`,
+          "Prefer":"return=minimal",
+        },
+        body:JSON.stringify(registro),
+      });
+      console.log("trackEvent enviado a Supabase:",evento,payload);
+    }else{
+      console.log("trackEvent (solo local, faltan credenciales Supabase):",evento,payload);
+    }
+  }catch(e){console.log("trackEvent: error enviando a Supabase",e);}
+}
+
+// ── COMPONENTES BASE ─────────────────────────────────────────
+
+function Toast({msg,visible}){
+  if(!visible)return null;
+  return <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",background:"#0f172a",color:"#fff",padding:"12px 20px",borderRadius:12,fontSize:15,fontWeight:500,zIndex:2000,display:"flex",alignItems:"center",gap:8,boxShadow:"0 4px 20px rgba(0,0,0,.25)",whiteSpace:"nowrap"}}>
+    <span style={{fontSize:18}}>✅</span> {msg}
+  </div>;
+}
+
+function ConfirmModal({open,onConfirm,onCancel,texto}){
+  if(!open)return null;
+  return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1500,padding:16}} onClick={onCancel}>
+    <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:440}} onClick={e=>e.stopPropagation()}>
+      <div style={{fontSize:22,textAlign:"center",marginBottom:12}}>🗑️</div>
+      <div style={{fontSize:17,fontWeight:600,color:"#0f172a",textAlign:"center",marginBottom:8}}>¿Borrar esto?</div>
+      <div style={{fontSize:15,color:"#64748b",textAlign:"center",marginBottom:24,lineHeight:1.5}}>{texto || "Esta acción no se puede deshacer."}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <button onClick={onConfirm} style={{background:"#ef4444",color:"#fff",border:"none",borderRadius:12,padding:"15px",fontSize:16,fontWeight:600,cursor:"pointer"}}>Sí, borrar</button>
+        <button onClick={onCancel} style={{background:"#f1f5f9",color:"#475569",border:"none",borderRadius:12,padding:"15px",fontSize:16,fontWeight:500,cursor:"pointer"}}>No, cancelar</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function Modal({open,onClose,titulo,children}){
+  if(!open)return null;
+  return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000,padding:"0"}} onClick={onClose}>
+    <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"24px 20px 32px",width:"100%",maxWidth:540,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+      <div style={{width:40,height:4,background:"#e2e8f0",borderRadius:99,margin:"0 auto 20px"}}/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h3 style={{margin:0,fontSize:18,fontWeight:700,color:"#0f172a"}}>{titulo}</h3>
+        <button onClick={onClose} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:20,color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+
+function Campo({etiqueta,ayuda,value,onChange,type="text",placeholder="",min,max,step}){
+  return <div style={{marginBottom:16}}>
+    {etiqueta&&<label style={{display:"block",fontSize:15,fontWeight:600,color:"#374151",marginBottom:5}}>{etiqueta}</label>}
+    {ayuda&&<div style={{fontSize:13,color:"#9ca3af",marginBottom:6}}>{ayuda}</div>}
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder} min={min} max={max} step={step}
+      style={{width:"100%",padding:"13px 14px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:16,color:"#0f172a",outline:"none",background:"#fafafa",boxSizing:"border-box"}}
+      onFocus={e=>{e.target.style.borderColor="#6366f1";e.target.style.background="#fff"}}
+      onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.background="#fafafa"}}
+    />
+  </div>;
+}
+
+function Selector({etiqueta,ayuda,value,onChange,opciones}){
+  return <div style={{marginBottom:16}}>
+    {etiqueta&&<label style={{display:"block",fontSize:15,fontWeight:600,color:"#374151",marginBottom:5}}>{etiqueta}</label>}
+    {ayuda&&<div style={{fontSize:13,color:"#9ca3af",marginBottom:6}}>{ayuda}</div>}
+    <select value={value} onChange={onChange}
+      style={{width:"100%",padding:"13px 14px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:16,color:"#0f172a",background:"#fafafa",boxSizing:"border-box",appearance:"none",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%239ca3af' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 12px center"}}>
+      {opciones.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+    </select>
+  </div>;
+}
+
+function Barra({valor,max,color="#6366f1",alto=8}){
+  const p=Math.min(100,Math.round(valor/max*100));
+  return <div style={{background:"#f1f5f9",borderRadius:99,height:alto,overflow:"hidden"}}>
+    <div style={{width:`${p}%`,height:"100%",background:valor>max?"#ef4444":color,borderRadius:99,transition:"width .4s"}}/>
+  </div>;
+}
+
+function BotonGrande({children,onClick,color="#6366f1",disabled,icono}){
+  return <button onClick={disabled?undefined:onClick} disabled={disabled}
+    style={{width:"100%",background:disabled?"#e5e7eb":color,color:disabled?"#9ca3af":"#fff",border:"none",borderRadius:14,padding:"16px",fontSize:16,fontWeight:700,cursor:disabled?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:8}}>
+    {icono&&<span style={{fontSize:20}}>{icono}</span>}{children}
+  </button>;
+}
+
+// ── MÓDULO: INICIO ────────────────────────────────────────────
+function Inicio({recordatorios,presupuesto,metas,irA}){
+  const[verResumen,setVerResumen]=useState(false);
+  const urgentes=recordatorios.filter(r=>diasPara(r.fecha)<=0);
+  const proximosSemana=recordatorios.filter(r=>{const d=diasPara(r.fecha);return d>0&&d<=7;});
+  const hora=new Date().getHours();
+  const saludo=hora<12?"Buenos días ☀️":hora<18?"Buenas tardes 🌤️":"Buenas noches 🌙";
+
+  const MODULOS=[
+    {id:"dinero",icono:"💰",nombre:"Mi dinero",desc:"Pagos, presupuesto y metas",color:"#6366f1",fondo:"#eef2ff",badge:urgentes.filter(r=>r.area==="dinero").length||null},
+    {id:"hogar",icono:"🏡",nombre:"Mi hogar",desc:"Servicios y recordatorios",color:"#f59e0b",fondo:"#fffbeb",badge:urgentes.filter(r=>r.area==="hogar").length||null},
+    {id:"mas",icono:"☰",nombre:"Más",desc:"Auto, herramientas y productos",color:"#8b5cf6",fondo:"#f5f3ff"},
+  ];
+
+  if(verResumen) return <div>
+    <button onClick={()=>setVerResumen(false)} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#6366f1",fontWeight:500,marginBottom:20,padding:0}}>
+      ← Regresar al inicio
+    </button>
+    <ResumenFinanciero presupuesto={presupuesto} metas={metas} recordatorios={recordatorios} irA={irA}/>
+  </div>;
+
+  return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <div style={{paddingTop:4}}>
+      <div style={{fontSize:15,color:"#94a3b8",marginBottom:3}}>{saludo}</div>
+      <div style={{fontSize:26,fontWeight:800,color:"#0f172a"}}>{USUARIO.name.split(" ")[0]}</div>
+    </div>
+
+    {urgentes.length>0&&<div>
+      <div style={{fontSize:13,fontWeight:700,color:"#dc2626",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+        <span style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",display:"inline-block"}}/>
+        {urgentes.length===1?"Tienes 1 pago urgente":"Tienes "+urgentes.length+" pagos urgentes"}
+      </div>
+      {urgentes.map(r=><div key={r.id} onClick={()=>irA(r.area==="hogar"?"hogar":"dinero")}
+        style={{display:"flex",alignItems:"center",gap:14,background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+        <div style={{width:48,height:48,borderRadius:12,background:"#fee2e2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:16,fontWeight:600,color:"#0f172a"}}>{r.titulo}</div>
+          <div style={{fontSize:14,color:"#dc2626",marginTop:2,fontWeight:500}}>Vence hoy</div>
+        </div>
+        {r.monto>0&&<div style={{fontSize:17,fontWeight:700,color:"#dc2626",flexShrink:0}}>{pesos(r.monto)}</div>}
+      </div>)}
+    </div>}
+
+    {proximosSemana.length>0&&<div>
+      <div style={{fontSize:13,fontWeight:700,color:"#d97706",marginBottom:10}}>⏰ Esta semana</div>
+      {proximosSemana.map(r=>{
+        const dias=diasPara(r.fecha);
+        return <div key={r.id} onClick={()=>irA(r.area==="hogar"?"hogar":"dinero")}
+          style={{display:"flex",alignItems:"center",gap:14,background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:14,padding:"12px 16px",marginBottom:8,cursor:"pointer"}}>
+          <span style={{fontSize:24,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.titulo}</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>{fechaCorta(r.fecha)}</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            {r.monto>0&&<div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>{pesos(r.monto)}</div>}
+            <div style={{fontSize:13,color:"#d97706",fontWeight:600,marginTop:2}}>en {dias}d</div>
+          </div>
+        </div>;
+      })}
+    </div>}
+
+    {urgentes.length===0&&proximosSemana.length===0&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:14,padding:"16px",display:"flex",alignItems:"center",gap:14}}>
+      <span style={{fontSize:28}}>✅</span>
+      <div>
+        <div style={{fontSize:16,fontWeight:700,color:"#16a34a"}}>¡Todo al día!</div>
+        <div style={{fontSize:14,color:"#4ade80",marginTop:2}}>No tienes pagos urgentes esta semana</div>
+      </div>
+    </div>}
+
+    <div>
+      <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:14}}>¿QUÉ QUIERES HACER?</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {MODULOS.map(m=><button key={m.id} onClick={()=>irA(m.id)}
+          style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px 14px",cursor:"pointer",textAlign:"left",display:"flex",flexDirection:"column",gap:12,position:"relative",minHeight:120}}>
+          {m.badge&&<div style={{position:"absolute",top:12,right:12,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"2px 7px",minWidth:22,textAlign:"center"}}>{m.badge}</div>}
+          <div style={{width:50,height:50,borderRadius:14,background:m.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{m.icono}</div>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:"#0f172a",marginBottom:3}}>{m.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.4}}>{m.desc}</div>
+          </div>
+        </button>)}
+      </div>
+    </div>
+
+    <button onClick={()=>setVerResumen(true)}
+      style={{width:"100%",background:"#0f172a",border:"none",borderRadius:16,padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:16}}>
+      <div style={{width:50,height:50,borderRadius:14,background:"rgba(255,255,255,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>📈</div>
+      <div style={{textAlign:"left",flex:1}}>
+        <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>Ver mi resumen financiero</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.6)",marginTop:2}}>Presupuesto, metas y próximos pagos</div>
+      </div>
+      <div style={{color:"rgba(255,255,255,.4)",fontSize:22}}>›</div>
+    </button>
+  </div>;
+}
+
+// ── RESUMEN FINANCIERO ────────────────────────────────────────
+function ResumenFinanciero({presupuesto,metas,recordatorios,irA}){
+  const gastado=presupuesto.categorias.reduce((s,c)=>s+c.gastado,0);
+  const limite=presupuesto.categorias.reduce((s,c)=>s+c.limite,0);
+  const libre=presupuesto.ingreso-gastado;
+  const proximos30=recordatorios.filter(r=>diasPara(r.fecha)<=30).sort((a,b)=>diasPara(a.fecha)-diasPara(b.fecha));
+  return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      {[
+        {etiqueta:"Lo que ganas al mes",valor:pesos(presupuesto.ingreso),color:"#6366f1"},
+        {etiqueta:"Lo que has gastado",valor:pesos(gastado),color:gastado>limite?"#ef4444":"#10b981"},
+        {etiqueta:"Dinero que te queda",valor:pesos(libre),color:libre<0?"#ef4444":"#f59e0b"},
+        {etiqueta:"Pagos próximos 30 días",valor:pesos(proximos30.reduce((s,r)=>s+r.monto,0)),color:"#64748b"},
+      ].map(t=><div key={t.etiqueta} style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"14px"}}>
+        <div style={{fontSize:20,fontWeight:800,color:t.color}}>{t.valor}</div>
+        <div style={{fontSize:13,color:"#94a3b8",marginTop:4,lineHeight:1.4}}>{t.etiqueta}</div>
+      </div>)}
+    </div>
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px"}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>Próximos pagos</div>
+      {proximos30.length===0?<div style={{textAlign:"center",padding:"20px 0",color:"#94a3b8",fontSize:15}}>Sin pagos próximos 🎉</div>:
+      proximos30.slice(0,4).map(r=>{
+        const dias=diasPara(r.fecha),u=urgencia(dias);
+        return <div key={r.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,background:u.fondo,marginBottom:8}}>
+          <span style={{fontSize:22}}>{ICONOS_TIPO[r.tipo]||"📌"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.titulo}</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginTop:1}}>{fechaCorta(r.fecha)}</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>{pesos(r.monto)}</div>
+            <div style={{fontSize:13,color:u.texto,fontWeight:600}}>{u.etiqueta}</div>
+          </div>
+        </div>;
+      })}
+    </div>
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px"}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>Mis categorías de gasto</div>
+      {presupuesto.categorias.map(c=><div key={c.id} style={{marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+          <span style={{fontSize:15,color:"#374151"}}>{c.icono} {c.nombre}</span>
+          <span style={{fontSize:14,color:c.gastado>c.limite?"#ef4444":"#64748b",fontWeight:600}}>{pesos(c.gastado)} / {pesos(c.limite)}</span>
+        </div>
+        <Barra valor={c.gastado} max={c.limite} color={c.gastado>c.limite?"#ef4444":c.color} alto={8}/>
+      </div>)}
+    </div>
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px"}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>Mis metas de ahorro</div>
+      {metas.map(g=>{
+        const p=Math.round(g.ahorrado/g.meta*100);
+        return <div key={g.id} style={{marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+            <span style={{fontSize:15,fontWeight:600,color:"#0f172a"}}>{g.icono} {g.nombre}</span>
+            <span style={{fontSize:14,color:"#94a3b8"}}>{p}%</span>
+          </div>
+          <Barra valor={g.ahorrado} max={g.meta} color={g.color} alto={10}/>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:5}}>
+            <span style={{fontSize:13,color:"#94a3b8"}}>Ahorrado: {pesos(g.ahorrado)}</span>
+            <span style={{fontSize:13,color:"#94a3b8"}}>Meta: {pesos(g.meta)}</span>
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+// ── MÓDULO: RECORDATORIOS (dinero) ────────────────────────────
+function Recordatorios({recordatorios,setRecordatorios,accion,onConsumirAccion}){
+  const[modalNuevo,setModalNuevo]=useState(false);
+  const[modalSeguro,setModalSeguro]=useState(false);
+  const[modalCotizar,setModalCotizar]=useState(null);
+  const[confirmarBorrar,setConfirmarBorrar]=useState(null);
+  const[leadEnviado,setLeadEnviado]=useState(false);
+  const[filtro,setFiltro]=useState("todos");
+  const[vista,setVista]=useState("lista");
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[form,setForm]=useState({titulo:"",tipo:"tarjeta",fecha:"",monto:"",cada_cuando:"Cada mes",notas:""});
+  const[segForm,setSegForm]=useState({marca:"",modelo:"",anio:"",placas:"",aseguradora:"",prima:"",cobertura:"Amplia",fecha:"",cp:""});
+  const[cotForm,setCotForm]=useState({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)",notas:""});
+
+  useEffect(()=>{
+    if(accion==="nuevo_pago"){setModalNuevo(true);onConsumirAccion();}
+    if(accion==="nuevo_seguro_auto"){setModalSeguro(true);onConsumirAccion();}
+  },[accion]);
+
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+
+  const dinero=recordatorios.filter(r=>r.area==="dinero");
+  const seguros=dinero.filter(r=>r.tipo==="seguro_auto");
+  const listaMostrar=dinero.filter(r=>{
+    if(vista==="seguros")return r.tipo==="seguro_auto";
+    if(filtro==="urgentes")return diasPara(r.fecha)<=7;
+    if(filtro==="mes")return diasPara(r.fecha)<=30&&diasPara(r.fecha)>7;
+    return true;
+  }).sort((a,b)=>diasPara(a.fecha)-diasPara(b.fecha));
+
+  const guardarRecordatorio=()=>{
+    if(!form.titulo||!form.fecha)return;
+    setRecordatorios(p=>[...p,{...form,id:Date.now(),area:"dinero",monto:Number(form.monto)||0}]);
+    trackEvent("recordatorio_creado",{tipo:form.tipo,monto:Number(form.monto)||0,cada_cuando:form.cada_cuando});
+    setForm({titulo:"",tipo:"tarjeta",fecha:"",monto:"",cada_cuando:"Cada mes",notas:""});
+    setModalNuevo(false);
+    mostrarToast("¡Recordatorio guardado!");
+  };
+
+  const guardarSeguro=()=>{
+    if(!segForm.marca||!segForm.modelo||!segForm.fecha)return;
+    const titulo=`Seguro del coche ${segForm.aseguradora} — ${segForm.marca} ${segForm.modelo} ${segForm.anio}`;
+    setRecordatorios(p=>[...p,{id:Date.now(),titulo,tipo:"seguro_auto",area:"dinero",fecha:segForm.fecha,monto:Number(segForm.prima)||0,cada_cuando:"Cada año",notas:`Placas: ${segForm.placas}`,auto:{...segForm,prima:Number(segForm.prima)||0}}]);
+    trackEvent("seguro_auto_registrado",{marca:segForm.marca,modelo:segForm.modelo,anio:segForm.anio,aseguradora:segForm.aseguradora,prima:Number(segForm.prima)||0,cobertura:segForm.cobertura,cp:segForm.cp,vencimiento:segForm.fecha});
+    setSegForm({marca:"",modelo:"",anio:"",placas:"",aseguradora:"",prima:"",cobertura:"Amplia",fecha:"",cp:""});
+    setModalSeguro(false);
+    mostrarToast("¡Seguro registrado! Te avisaremos antes de que venza.");
+  };
+
+  const enviarCotizacion=()=>{
+    if(!cotForm.nombre||!cotForm.telefono||!cotForm.cp)return;
+    trackEvent("lead_seguro_auto",{auto:modalCotizar?.auto,vencimiento:modalCotizar?.fecha,contacto:cotForm});
+    setLeadEnviado(true);
+    setTimeout(()=>{setLeadEnviado(false);setModalCotizar(null);setCotForm({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)",notas:""});},3000);
+  };
+
+  const borrar=id=>{
+    setRecordatorios(p=>p.filter(r=>r.id!==id));
+    setConfirmarBorrar(null);
+    mostrarToast("Recordatorio eliminado");
+  };
+
+  return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={!!confirmarBorrar} onConfirm={()=>borrar(confirmarBorrar?.id)} onCancel={()=>setConfirmarBorrar(null)} texto={`¿Quieres borrar "${confirmarBorrar?.titulo}"?`}/>
+
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Mis pagos</h2>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>setModalSeguro(true)} style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+          🚗 Seguro auto
+        </button>
+        <button onClick={()=>setModalNuevo(true)} style={{background:"#6366f1",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+          + Agregar
+        </button>
+      </div>
+    </div>
+
+    {seguros.length>0&&<div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:14,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
+      <div style={{width:48,height:48,borderRadius:12,background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🚗</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{seguros.length} seguro{seguros.length>1?"s":""} de auto registrado{seguros.length>1?"s":""}</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:2}}>
+          {seguros.filter(s=>diasPara(s.fecha)<=30).length>0?"⚠️ Uno vence pronto — revisa abajo":"Todos vigentes por ahora ✓"}
+        </div>
+      </div>
+      <button onClick={()=>setVista(vista==="seguros"?"lista":"seguros")}
+        style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:8,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+        {vista==="seguros"?"Ver todos":"Ver seguros"}
+      </button>
+    </div>}
+
+    {vista!=="seguros"&&<div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+      {[["todos","Todos"],["urgentes","🔴 Urgentes"],["mes","🟡 Este mes"]].map(([v,l])=><button key={v} onClick={()=>setFiltro(v)}
+        style={{padding:"9px 16px",borderRadius:99,border:"1.5px solid",fontSize:14,fontWeight:500,cursor:"pointer",whiteSpace:"nowrap",borderColor:filtro===v?"#6366f1":"#e2e8f0",background:filtro===v?"#6366f1":"#fff",color:filtro===v?"#fff":"#64748b"}}>
+        {l}
+      </button>)}
+    </div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {listaMostrar.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#94a3b8"}}>
+        <div style={{fontSize:40,marginBottom:10}}>✅</div>
+        <div style={{fontSize:16,fontWeight:500,color:"#475569",marginBottom:6}}>Sin recordatorios aquí</div>
+        <div style={{fontSize:14}}>Toca "+ Agregar" para crear uno</div>
+      </div>}
+      {listaMostrar.map(r=>{
+        const dias=diasPara(r.fecha),u=urgencia(dias);
+        const esSeguro=r.tipo==="seguro_auto";
+        const vencePronto=dias<=30;
+        return <div key={r.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${esSeguro?"#bfdbfe":u.borde}`,padding:"16px",borderLeft:`5px solid ${esSeguro?"#2563eb":u.dot}`}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{width:50,height:50,borderRadius:12,background:esSeguro?"#eff6ff":u.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>
+              {ICONOS_TIPO[r.tipo]||"📌"}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:3}}>{r.titulo}</div>
+              <div style={{fontSize:14,color:"#94a3b8",marginBottom:4}}>{fechaLarga(r.fecha)} · {r.cada_cuando}</div>
+              {esSeguro&&r.auto&&<div style={{fontSize:13,color:"#64748b",marginBottom:4}}>Cobertura {r.auto.cobertura} · Prima {pesos(r.auto.prima)}</div>}
+              {!esSeguro&&r.notas&&<div style={{fontSize:13,color:"#64748b",fontStyle:"italic"}}>{r.notas}</div>}
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              {r.monto>0&&<div style={{fontSize:17,fontWeight:800,color:"#0f172a"}}>{pesos(r.monto)}</div>}
+              <div style={{marginTop:4,background:u.fondo,color:u.texto,borderRadius:99,padding:"3px 10px",fontSize:13,fontWeight:700,display:"inline-block"}}>{u.etiqueta}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:14,paddingTop:12,borderTop:"1px solid #f1f5f9",flexWrap:"wrap"}}>
+            {esSeguro&&vencePronto&&<button onClick={()=>{setModalCotizar(r);setLeadEnviado(false);setCotForm({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)",notas:"Me interesa renovar mi seguro"});}}
+              style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontSize:14,fontWeight:700,cursor:"pointer",flex:1}}>
+              💬 Quiero cotizar mi renovación
+            </button>}
+            <button onClick={()=>setConfirmarBorrar(r)}
+              style={{background:"#fef2f2",color:"#dc2626",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+              🗑️ Borrar
+            </button>
+          </div>
+        </div>;
+      })}
+    </div>
+
+    <Modal open={modalNuevo} onClose={()=>setModalNuevo(false)} titulo="Nuevo pago o recordatorio">
+      <Campo etiqueta="¿Qué tienes que pagar o recordar?" ayuda="Ej: Tarjeta Liverpool, Colegiatura" value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Escribe el nombre..."/>
+      <Selector etiqueta="¿Qué tipo de pago es?" value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))} opciones={[
+        {v:"tarjeta",l:"💳 Tarjeta de crédito o débito"},{v:"seguro",l:"🛡️ Seguro"},
+        {v:"inversion",l:"📈 Inversión, pagaré o ahorro"},{v:"vehiculo",l:"🚗 Coche (verificación, tenencia)"},{v:"otro",l:"📌 Otro"}
+      ]}/>
+      <Campo etiqueta="¿En qué fecha vence o hay que pagar?" type="date" value={form.fecha} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))}/>
+      <Campo etiqueta="¿Cuánto hay que pagar? (en pesos)" ayuda="Déjalo en 0 si no sabes el monto exacto" type="number" value={form.monto} onChange={e=>setForm(p=>({...p,monto:e.target.value}))} placeholder="0" min="0" step="10"/>
+      <Selector etiqueta="¿Cada cuánto se repite?" value={form.cada_cuando} onChange={e=>setForm(p=>({...p,cada_cuando:e.target.value}))} opciones={[
+        {v:"Una sola vez",l:"Una sola vez"},{v:"Cada semana",l:"Cada semana"},{v:"Cada 15 días",l:"Cada 15 días"},
+        {v:"Cada mes",l:"Cada mes"},{v:"Cada 2 meses",l:"Cada 2 meses"},{v:"Cada año",l:"Cada año"}
+      ]}/>
+      <Campo etiqueta="Notas (opcional)" ayuda="Número de cuenta, póliza, o cualquier dato extra" value={form.notas} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Ej: Póliza #12345, cuenta CLABE..."/>
+      <BotonGrande onClick={guardarRecordatorio} disabled={!form.titulo||!form.fecha} icono="✅">Guardar recordatorio</BotonGrande>
+      <button onClick={()=>setModalNuevo(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+
+    <Modal open={modalSeguro} onClose={()=>setModalSeguro(false)} titulo="Registrar seguro de auto">
+      <div style={{background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:14,color:"#1e40af",lineHeight:1.5}}>
+        🛡️ Te avisaremos 30 días antes de que venza para que puedas cotizar y renovar a tiempo
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <Campo etiqueta="Marca" value={segForm.marca} onChange={e=>setSegForm(p=>({...p,marca:e.target.value}))} placeholder="Nissan, Toyota..."/>
+        <Campo etiqueta="Modelo" value={segForm.modelo} onChange={e=>setSegForm(p=>({...p,modelo:e.target.value}))} placeholder="Versa, Corolla..."/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <Campo etiqueta="Año" type="number" value={segForm.anio} onChange={e=>setSegForm(p=>({...p,anio:e.target.value}))} placeholder="2020" min="1990" max="2027"/>
+        <Campo etiqueta="Placas" value={segForm.placas} onChange={e=>setSegForm(p=>({...p,placas:e.target.value}))} placeholder="ABC-123"/>
+      </div>
+      <Campo etiqueta="¿Con qué aseguradora tienes hoy?" value={segForm.aseguradora} onChange={e=>setSegForm(p=>({...p,aseguradora:e.target.value}))} placeholder="GNP, AXA, Qualitas, HDI..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <Campo etiqueta="Lo que pagas al año ($)" type="number" value={segForm.prima} onChange={e=>setSegForm(p=>({...p,prima:e.target.value}))} placeholder="0" min="0" step="100"/>
+        <Selector etiqueta="Tipo de cobertura" value={segForm.cobertura} onChange={e=>setSegForm(p=>({...p,cobertura:e.target.value}))} opciones={[{v:"Amplia",l:"Amplia — cubre todo"},{v:"Limitada",l:"Limitada"},{v:"Solo RC",l:"Solo responsabilidad civil"}]}/>
+      </div>
+      <Campo etiqueta="Código postal donde guardas el coche" ayuda="Lo usamos para cotizar con las mejores tarifas de tu zona" value={segForm.cp} onChange={e=>setSegForm(p=>({...p,cp:e.target.value}))} placeholder="Ej: 06600" type="tel"/>
+      <Campo etiqueta="¿Cuándo vence tu póliza?" type="date" value={segForm.fecha} onChange={e=>setSegForm(p=>({...p,fecha:e.target.value}))}/>
+      <BotonGrande onClick={guardarSeguro} disabled={!segForm.marca||!segForm.modelo||!segForm.fecha} color="#1e3a5f" icono="🚗">Registrar mi seguro</BotonGrande>
+      <button onClick={()=>setModalSeguro(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+
+    <Modal open={!!modalCotizar} onClose={()=>{setModalCotizar(null);setLeadEnviado(false);}} titulo="Cotizar renovación de seguro">
+      {leadEnviado
+        ?<div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:56,marginBottom:16}}>✅</div>
+          <div style={{fontSize:20,fontWeight:700,color:"#0f172a",marginBottom:10}}>¡Solicitud enviada!</div>
+          <div style={{fontSize:15,color:"#64748b",lineHeight:1.6}}>Un asesor de UPCO te va a contactar en menos de 24 horas con las mejores opciones para tu coche</div>
+        </div>
+        :<div>
+          {modalCotizar?.auto&&<div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16}}>
+            <div style={{fontSize:13,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:".04em",fontWeight:600}}>Tu coche</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#0f172a"}}>{modalCotizar.auto.marca} {modalCotizar.auto.modelo} {modalCotizar.auto.anio}</div>
+            <div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:14,color:"#64748b"}}>🔢 {modalCotizar.auto.placas}</span>
+              <span style={{fontSize:14,color:"#64748b"}}>🛡️ Cobertura {modalCotizar.auto.cobertura}</span>
+              <span style={{fontSize:14,color:"#64748b"}}>💰 Prima actual: {pesos(modalCotizar.auto.prima)}</span>
+            </div>
+            <div style={{marginTop:8,fontSize:14,color:"#dc2626",fontWeight:600}}>
+              📅 Vence el {fechaCorta(modalCotizar.fecha)} — en {diasPara(modalCotizar.fecha)} días
+            </div>
+          </div>}
+          <Campo etiqueta="Tu nombre completo" value={cotForm.nombre} onChange={e=>setCotForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: María González"/>
+          <Campo etiqueta="Tu WhatsApp" ayuda="Te mandamos la cotización por WhatsApp" type="tel" value={cotForm.telefono} onChange={e=>setCotForm(p=>({...p,telefono:e.target.value}))} placeholder="55 1234 5678"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Campo etiqueta="Código postal" ayuda="Para calcular la tarifa de tu zona" type="tel" value={cotForm.cp} onChange={e=>setCotForm(p=>({...p,cp:e.target.value}))} placeholder="Ej: 06600"/>
+            <Campo etiqueta="Email (opcional)" type="email" value={cotForm.email} onChange={e=>setCotForm(p=>({...p,email:e.target.value}))} placeholder="tu@correo.com"/>
+          </div>
+          <Selector etiqueta="¿Cuándo te podemos llamar?" value={cotForm.mejor_hora} onChange={e=>setCotForm(p=>({...p,mejor_hora:e.target.value}))} opciones={[
+            {v:"Mañana (9 a 12)",l:"🌅 Mañana (9 a 12 hrs)"},{v:"Tarde (12 a 17)",l:"☀️ Tarde (12 a 17 hrs)"},
+            {v:"Noche (17 a 20)",l:"🌆 Noche (17 a 20 hrs)"},{v:"Cualquier hora",l:"📞 A cualquier hora"}
+          ]}/>
+          <div style={{background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:10,padding:"12px 14px",marginBottom:8,fontSize:14,color:"#1e40af",lineHeight:1.5}}>
+            Comparamos GNP, AXA, Qualitas, HDI y más aseguradoras para encontrarte la mejor opción en tu código postal
+          </div>
+          <BotonGrande onClick={enviarCotizacion} disabled={!cotForm.nombre||!cotForm.telefono||!cotForm.cp} color="#1e3a5f" icono="💬">Quiero mi cotización</BotonGrande>
+          <button onClick={()=>setModalCotizar(null)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+        </div>
+      }
+    </Modal>
+  </div>;
+}
+
+// ── MÓDULO: PRESUPUESTO ───────────────────────────────────────
+function Presupuesto({presupuesto,setPresupuesto,accion,onConsumirAccion}){
+  const[modalCat,setModalCat]=useState(false);
+  const[editando,setEditando]=useState(null);
+  const[editIngreso,setEditIngreso]=useState(false);
+  const[nuevoIngreso,setNuevoIngreso]=useState(presupuesto.ingreso);
+  const[confirmarBorrar,setConfirmarBorrar]=useState(null);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[form,setForm]=useState({nombre:"",limite:"",gastado:"0",icono:"📦"});
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  const ICONOS=["🏠","🛒","🚗","🎬","💰","💡","🏥","📚","👗","🍽️","🎮","✈️","💊","🐾","💻","📱","⚽","🐶"];
+  const totalLimite=presupuesto.categorias.reduce((s,c)=>s+c.limite,0);
+  const totalGastado=presupuesto.categorias.reduce((s,c)=>s+c.gastado,0);
+  const abrirEditar=c=>{setEditando(c);setForm({nombre:c.nombre,limite:c.limite,gastado:c.gastado,icono:c.icono});setModalCat(true);};
+  const abrirNueva=()=>{setEditando(null);setForm({nombre:"",limite:"",gastado:"0",icono:"📦"});setModalCat(true);};
+  useEffect(()=>{if(accion==="nueva_categoria"){abrirNueva();onConsumirAccion();}},[accion]);
+  const guardar=()=>{
+    if(!form.nombre)return;
+    if(editando)setPresupuesto(p=>({...p,categorias:p.categorias.map(c=>c.id===editando.id?{...c,...form,limite:Number(form.limite),gastado:Number(form.gastado)}:c)}));
+    else setPresupuesto(p=>({...p,categorias:[...p.categorias,{id:Date.now(),...form,limite:Number(form.limite),gastado:Number(form.gastado),color:"#6366f1"}]}));
+    setModalCat(false);
+    mostrarToast(editando?"Categoría actualizada":"¡Categoría guardada!");
+  };
+  const borrar=id=>{setPresupuesto(p=>({...p,categorias:p.categorias.filter(c=>c.id!==id)}));setConfirmarBorrar(null);mostrarToast("Categoría eliminada");};
+  return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={!!confirmarBorrar} onConfirm={()=>borrar(confirmarBorrar?.id)} onCancel={()=>setConfirmarBorrar(null)} texto={`¿Quieres borrar la categoría "${confirmarBorrar?.nombre}"?`}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Presupuesto</h2>
+      <button onClick={abrirNueva} style={{background:"#6366f1",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer"}}>+ Categoría</button>
+    </div>
+    <div style={{background:"linear-gradient(135deg,#6366f1,#8b5cf6)",borderRadius:16,padding:"20px",marginBottom:16}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4,fontWeight:500}}>LO QUE GANAS AL MES</div>
+      {editIngreso
+        ?<div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input type="number" value={nuevoIngreso} onChange={e=>setNuevoIngreso(Number(e.target.value))} style={{flex:1,padding:"10px 12px",borderRadius:10,border:"none",fontSize:18,fontWeight:700}}/>
+          <button onClick={()=>{setPresupuesto(p=>({...p,ingreso:nuevoIngreso}));setEditIngreso(false);mostrarToast("Ingreso actualizado");trackEvent("ingreso_actualizado",{ingreso:nuevoIngreso});}} style={{background:"rgba(255,255,255,.2)",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontSize:15,fontWeight:600,cursor:"pointer"}}>Guardar</button>
+        </div>
+        :<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:32,fontWeight:800,color:"#fff"}}>{pesos(presupuesto.ingreso)}</div>
+          <button onClick={()=>{setNuevoIngreso(presupuesto.ingreso);setEditIngreso(true);}} style={{background:"rgba(255,255,255,.2)",color:"#fff",border:"none",borderRadius:10,padding:"8px 14px",fontSize:14,fontWeight:600,cursor:"pointer"}}>Editar</button>
+        </div>
+      }
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:16}}>
+        {[{l:"Presupuestado",v:pesos(totalLimite)},{l:"Gastado",v:pesos(totalGastado)},{l:"Sin asignar",v:pesos(presupuesto.ingreso-totalLimite)}].map(i=>
+          <div key={i.l} style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#fff"}}>{i.v}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:3}}>{i.l}</div>
+          </div>
+        )}
+      </div>
+    </div>
+    <div style={{background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:12,padding:"12px 16px",marginBottom:16,display:"flex",gap:12,alignItems:"flex-start"}}>
+      <span style={{fontSize:22}}>💡</span>
+      <div>
+        <div style={{fontSize:14,fontWeight:700,color:"#92400e",marginBottom:3}}>Regla del 50 / 30 / 20</div>
+        <div style={{fontSize:13,color:"#a16207",lineHeight:1.5}}>
+          Necesidades <strong>{pesos(presupuesto.ingreso*.5)}</strong> · Gustos <strong>{pesos(presupuesto.ingreso*.3)}</strong> · Ahorro <strong>{pesos(presupuesto.ingreso*.2)}</strong>
+        </div>
+      </div>
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {presupuesto.categorias.map(c=>{
+        const pasado=c.gastado>c.limite;
+        return <div key={c.id} style={{background:"#fff",border:`1.5px solid ${pasado?"#fca5a5":"#e5e7eb"}`,borderRadius:14,padding:"16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:50,height:50,borderRadius:14,background:c.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{c.icono}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:16,fontWeight:600,color:"#0f172a"}}>{c.nombre}</span>
+                <span style={{fontSize:14,fontWeight:700,color:pasado?"#ef4444":"#64748b"}}>{Math.round(c.gastado/c.limite*100)}%</span>
+              </div>
+              <Barra valor={c.gastado} max={c.limite} color={pasado?"#ef4444":c.color} alto={8}/>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                <span style={{fontSize:13,color:"#94a3b8"}}>Gastado: {pesos(c.gastado)}</span>
+                <span style={{fontSize:13,color:pasado?"#ef4444":"#94a3b8"}}>Límite: {pesos(c.limite)}</span>
+              </div>
+              {pasado&&<div style={{marginTop:6,fontSize:13,color:"#dc2626",fontWeight:600}}>⚠️ Te pasaste por {pesos(c.gastado-c.limite)}</div>}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:12,paddingTop:12,borderTop:"1px solid #f1f5f9"}}>
+            <button onClick={()=>abrirEditar(c)} style={{flex:1,background:"#f1f5f9",color:"#475569",border:"none",borderRadius:10,padding:"10px",fontSize:14,fontWeight:500,cursor:"pointer"}}>✏️ Editar</button>
+            <button onClick={()=>setConfirmarBorrar(c)} style={{background:"#fef2f2",color:"#dc2626",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:500,cursor:"pointer"}}>🗑️</button>
+          </div>
+        </div>;
+      })}
+    </div>
+    <Modal open={modalCat} onClose={()=>setModalCat(false)} titulo={editando?"Editar categoría":"Nueva categoría"}>
+      <Campo etiqueta="¿Cómo se llama?" ayuda="Ej: Comida, Renta, Colegiatura, Gasolina" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la categoría"/>
+      <div style={{marginBottom:16}}>
+        <label style={{display:"block",fontSize:15,fontWeight:600,color:"#374151",marginBottom:8}}>¿Qué ícono le pones?</label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {ICONOS.map(ic=><button key={ic} onClick={()=>setForm(p=>({...p,icono:ic}))}
+            style={{width:44,height:44,border:`2px solid ${form.icono===ic?"#6366f1":"#e5e7eb"}`,borderRadius:10,background:form.icono===ic?"#eef2ff":"#fff",cursor:"pointer",fontSize:22}}>{ic}</button>)}
+        </div>
+      </div>
+      <Campo etiqueta="¿Cuánto puedes gastar aquí al mes?" ayuda="Este es tu límite para esta categoría" type="number" value={form.limite} onChange={e=>setForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 5000" min="0" step="100"/>
+      <Campo etiqueta="¿Cuánto llevas gastado este mes?" type="number" value={form.gastado} onChange={e=>setForm(p=>({...p,gastado:e.target.value}))} placeholder="0" min="0" step="10"/>
+      <BotonGrande onClick={guardar} disabled={!form.nombre} icono="✅">Guardar</BotonGrande>
+      <button onClick={()=>setModalCat(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+  </div>;
+}
+
+// ── MÓDULO: COMPRAS ───────────────────────────────────────────
+function Compras({listas,setListas,accion,onConsumirAccion}){
+  const[vista,setVista]=useState("inicio");
+  const[listaActivaId,setListaActivaId]=useState(null);
+  const[modalNueva,setModalNueva]=useState(false);
+  const[modalProducto,setModalProducto]=useState(false);
+  const[modalCerrar,setModalCerrar]=useState(false);
+  const[historialId,setHistorialId]=useState(null);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[listaForm,setListaForm]=useState({nombre:"",tienda:"Walmart",limite:""});
+  const[prodForm,setProdForm]=useState({nombre:"",cantidad:"1",unidad:"pieza",precio:""});
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  useEffect(()=>{if(accion==="nueva_lista"){setVista("inicio");setModalNueva(true);onConsumirAccion();}},[accion]);
+  const listaActiva=listas.find(l=>l.id===listaActivaId);
+  const listasAbiertas=listas.filter(l=>l.estado==="abierta");
+  const listasCerradas=listas.filter(l=>l.estado==="cerrada");
+  const listaHistorial=listas.find(l=>l.id===historialId);
+  const TIENDAS=["Walmart","Costco","Soriana","Chedraui","Mercado local","OXXO","Bodega Aurrera","Otro"];
+  const totalLista=prods=>prods.reduce((s,p)=>s+p.precio*p.cantidad,0);
+  const crearLista=()=>{
+    if(!listaForm.nombre)return;
+    const nueva={id:Date.now(),nombre:listaForm.nombre,tienda:listaForm.tienda,limite:Number(listaForm.limite)||0,fecha:new Date().toISOString().split("T")[0],estado:"abierta",productos:[]};
+    setListas(p=>[...p,nueva]);setListaActivaId(nueva.id);setListaForm({nombre:"",tienda:"Walmart",limite:""});setModalNueva(false);setVista("activa");
+  };
+  const agregarProducto=()=>{
+    if(!prodForm.nombre||!listaActivaId)return;
+    setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:[...l.productos,{id:Date.now(),nombre:prodForm.nombre,cantidad:Number(prodForm.cantidad)||1,unidad:prodForm.unidad,precio:Number(prodForm.precio)||0,listo:false}]}:l));
+    setProdForm({nombre:"",cantidad:"1",unidad:"pieza",precio:""});setModalProducto(false);
+  };
+  const marcarProducto=pid=>setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:l.productos.map(pr=>pr.id===pid?{...pr,listo:!pr.listo}:pr)}:l));
+  const quitarProducto=pid=>setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:l.productos.filter(pr=>pr.id!==pid)}:l));
+  const cerrarLista=()=>{setListas(p=>p.map(l=>l.id===listaActivaId?{...l,estado:"cerrada"}:l));setModalCerrar(false);setVista("inicio");setListaActivaId(null);mostrarToast("¡Compra cerrada y guardada!");};
+
+  if(vista==="inicio") return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Mis compras</h2>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>setVista("historial")} style={{background:"#f1f5f9",color:"#475569",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:500,cursor:"pointer"}}>📋 Anteriores</button>
+        <button onClick={()=>setModalNueva(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer"}}>+ Nueva lista</button>
+      </div>
+    </div>
+    {listasAbiertas.map(l=>{
+      const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
+      return <div key={l.id} onClick={()=>{setListaActivaId(l.id);setVista("activa");}}
+        style={{background:"#fff",border:`2px solid ${pasado?"#fca5a5":"#a5f3c0"}`,borderRadius:16,padding:"18px",marginBottom:14,cursor:"pointer"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontSize:16,fontWeight:700,color:"#0f172a"}}>{l.nombre}</span>
+              <span style={{background:"#d1fae5",color:"#065f46",fontSize:12,fontWeight:600,padding:"2px 8px",borderRadius:99}}>Activa</span>
+            </div>
+            <div style={{fontSize:14,color:"#94a3b8"}}>🏪 {l.tienda} · {l.productos.length} productos</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:20,fontWeight:800,color:pasado?"#ef4444":"#0f172a"}}>{pesos(total)}</div>
+            {l.limite>0&&<div style={{fontSize:13,color:"#94a3b8"}}>Límite: {pesos(l.limite)}</div>}
+          </div>
+        </div>
+        {l.limite>0&&<Barra valor={total} max={l.limite} color={pasado?"#ef4444":"#10b981"} alto={6}/>}
+        <div style={{marginTop:12,fontSize:14,color:"#10b981",fontWeight:600}}>Toca para continuar comprando →</div>
+      </div>;
+    })}
+    {listasAbiertas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#94a3b8"}}>
+      <div style={{fontSize:48,marginBottom:14}}>🛒</div>
+      <div style={{fontSize:18,fontWeight:600,color:"#475569",marginBottom:8}}>Sin listas activas</div>
+      <div style={{fontSize:15,marginBottom:24}}>Crea una lista para tu próxima compra</div>
+      <button onClick={()=>setModalNueva(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:12,padding:"14px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>+ Crear mi primera lista</button>
+    </div>}
+    {listasCerradas.length>0&&<div style={{marginTop:8}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:12}}>COMPRAS RECIENTES</div>
+      {listasCerradas.slice(-3).reverse().map(l=>{
+        const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
+        return <div key={l.id} onClick={()=>{setHistorialId(l.id);setVista("historial");}}
+          style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+          <div style={{width:48,height:48,borderRadius:12,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🧾</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#0f172a"}}>{l.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>{l.tienda} · {fechaCorta(l.fecha)}</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:16,fontWeight:700,color:pasado?"#ef4444":"#0f172a"}}>{pesos(total)}</div>
+            {l.limite>0&&<div style={{fontSize:12,color:pasado?"#ef4444":"#10b981",fontWeight:600}}>{pasado?"⚠️ Pasado":"✓ En límite"}</div>}
+          </div>
+        </div>;
+      })}
+    </div>}
+    <Modal open={modalNueva} onClose={()=>setModalNueva(false)} titulo="Nueva lista de compras">
+      <Campo etiqueta="¿Cómo se llama esta lista?" ayuda="Ej: Super semanal, Despensa del mes, Cosas del baño" value={listaForm.nombre} onChange={e=>setListaForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la lista..."/>
+      <Selector etiqueta="¿En qué tienda vas a comprar?" value={listaForm.tienda} onChange={e=>setListaForm(p=>({...p,tienda:e.target.value}))} opciones={TIENDAS.map(t=>({v:t,l:t}))}/>
+      <Campo etiqueta="¿Cuánto puedes gastar? (opcional)" ayuda="Te avisamos si te estás pasando del presupuesto" type="number" value={listaForm.limite} onChange={e=>setListaForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 1500" min="0" step="50"/>
+      <BotonGrande onClick={crearLista} disabled={!listaForm.nombre} color="#10b981" icono="🛒">Crear lista y empezar</BotonGrande>
+      <button onClick={()=>setModalNueva(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+  </div>;
+
+  if(vista==="activa"&&listaActiva){
+    const total=totalLista(listaActiva.productos);
+    const enCarrito=listaActiva.productos.filter(p=>p.listo).reduce((s,p)=>s+p.precio*p.cantidad,0);
+    const pendientes=listaActiva.productos.filter(p=>!p.listo);
+    const listos=listaActiva.productos.filter(p=>p.listo);
+    const pasado=listaActiva.limite>0&&total>listaActiva.limite;
+    return <div>
+      <Toast msg={toast.msg} visible={toast.visible}/>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+        <button onClick={()=>setVista("inicio")} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{listaActiva.nombre}</div>
+          <div style={{fontSize:14,color:"#94a3b8"}}>🏪 {listaActiva.tienda}</div>
+        </div>
+        <button onClick={()=>setModalProducto(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Producto</button>
+      </div>
+      <div style={{background:pasado?"#fef2f2":"#f0fdf4",border:`1.5px solid ${pasado?"#fca5a5":"#86efac"}`,borderRadius:14,padding:"16px",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:pasado?"#dc2626":"#16a34a",textTransform:"uppercase",letterSpacing:".04em"}}>{pasado?"⚠️ Te pasaste del límite":"🛒 Total de la lista"}</div>
+            <div style={{fontSize:32,fontWeight:800,color:pasado?"#dc2626":"#0f172a",marginTop:4}}>{pesos(total)}</div>
+          </div>
+          {listaActiva.limite>0&&<div style={{textAlign:"right"}}>
+            <div style={{fontSize:13,color:"#64748b"}}>Tu límite</div>
+            <div style={{fontSize:20,fontWeight:700,color:"#64748b"}}>{pesos(listaActiva.limite)}</div>
+          </div>}
+        </div>
+        {listaActiva.limite>0&&<><Barra valor={total} max={listaActiva.limite} color={pasado?"#ef4444":"#22c55e"} alto={10}/>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+          <span style={{fontSize:13,color:"#64748b"}}>{Math.round(total/listaActiva.limite*100)}% del presupuesto</span>
+          <span style={{fontSize:13,color:pasado?"#dc2626":"#16a34a",fontWeight:600}}>{pasado?`${pesos(total-listaActiva.limite)} de más`:`Te quedan ${pesos(listaActiva.limite-total)}`}</span>
+        </div></>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}>
+          <div style={{background:"rgba(255,255,255,.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#0f172a"}}>{pesos(enCarrito)}</div>
+            <div style={{fontSize:12,color:"#64748b"}}>Ya en el carrito</div>
+          </div>
+          <div style={{background:"rgba(255,255,255,.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#0f172a"}}>{pendientes.length}</div>
+            <div style={{fontSize:12,color:"#64748b"}}>Por comprar</div>
+          </div>
+        </div>
+      </div>
+      {pendientes.length>0&&<div style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>POR COMPRAR ({pendientes.length})</div>
+        {pendientes.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:12,padding:"14px",marginBottom:8}}>
+          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"2px solid #6366f1",background:"#fff",cursor:"pointer",flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:16,fontWeight:600,color:"#0f172a"}}>{pr.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>{pr.cantidad} {pr.unidad}</div>
+          </div>
+          <div style={{fontSize:16,fontWeight:700,color:"#0f172a",flexShrink:0}}>{pesos(pr.precio*pr.cantidad)}</div>
+          <button onClick={()=>quitarProducto(pr.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#d1d5db",fontSize:22,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+        </div>)}
+      </div>}
+      {listos.length>0&&<div style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:10}}>EN EL CARRITO ({listos.length})</div>
+        {listos.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"14px",marginBottom:8,opacity:.85}}>
+          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"none",background:"#22c55e",cursor:"pointer",flexShrink:0,fontSize:16,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:16,fontWeight:500,color:"#475569",textDecoration:"line-through"}}>{pr.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>{pr.cantidad} {pr.unidad}</div>
+          </div>
+          <div style={{fontSize:15,fontWeight:600,color:"#16a34a",flexShrink:0}}>{pesos(pr.precio*pr.cantidad)}</div>
+        </div>)}
+      </div>}
+      {listaActiva.productos.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94a3b8"}}>
+        <div style={{fontSize:36,marginBottom:10}}>📝</div>
+        <div style={{fontSize:16}}>Agrega el primer producto a tu lista</div>
+      </div>}
+      {listaActiva.productos.length>0&&<button onClick={()=>setModalCerrar(true)}
+        style={{width:"100%",background:"#0f172a",color:"#fff",border:"none",borderRadius:16,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+        🏁 Cerrar compra — {pesos(total)}
+      </button>}
+      <Modal open={modalProducto} onClose={()=>setModalProducto(false)} titulo="Agregar producto">
+        <Campo etiqueta="¿Qué producto es?" value={prodForm.nombre} onChange={e=>setProdForm(p=>({...p,nombre:e.target.value}))} placeholder="Leche, aguacates, jabón..."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <Campo etiqueta="¿Cuánto?" type="number" value={prodForm.cantidad} onChange={e=>setProdForm(p=>({...p,cantidad:e.target.value}))} min="0.1" step="0.5"/>
+          <Selector etiqueta="Unidad" value={prodForm.unidad} onChange={e=>setProdForm(p=>({...p,unidad:e.target.value}))} opciones={[{v:"pieza",l:"Pieza"},{v:"kg",l:"Kilogramo"},{v:"litro",l:"Litro"},{v:"gramos",l:"Gramos"},{v:"paquete",l:"Paquete"},{v:"caja",l:"Caja"}]}/>
+        </div>
+        <Campo etiqueta="¿Cuánto cuesta?" ayuda="El precio aproximado — para saber cuánto llevar" type="number" value={prodForm.precio} onChange={e=>setProdForm(p=>({...p,precio:e.target.value}))} placeholder="0" min="0" step="1"/>
+        {listaActiva?.limite>0&&prodForm.precio&&<div style={{background:totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"#fef2f2":"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:14,color:totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"#dc2626":"#16a34a",fontWeight:500}}>
+          {totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"⚠️":"✅"} El total quedaría en {pesos(totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad))}
+        </div>}
+        <BotonGrande onClick={agregarProducto} disabled={!prodForm.nombre} color="#10b981" icono="➕">Agregar a la lista</BotonGrande>
+        <button onClick={()=>setModalProducto(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+      </Modal>
+      <Modal open={modalCerrar} onClose={()=>setModalCerrar(false)} titulo="Resumen de tu compra">
+        <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+          <div style={{fontSize:48,marginBottom:10}}>🧾</div>
+          <div style={{fontSize:15,color:"#64748b",marginBottom:4}}>{listaActiva.nombre} · {listaActiva.tienda}</div>
+          <div style={{fontSize:36,fontWeight:800,color:"#0f172a",marginBottom:4}}>{pesos(total)}</div>
+          {listaActiva.limite>0&&<div style={{fontSize:15,color:pasado?"#dc2626":"#16a34a",fontWeight:600}}>{pasado?`⚠️ Te pasaste por ${pesos(total-listaActiva.limite)}`:`✅ Dentro de tu límite de ${pesos(listaActiva.limite)}`}</div>}
+        </div>
+        <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16,maxHeight:200,overflowY:"auto"}}>
+          {listaActiva.productos.map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f1f5f9",fontSize:14}}>
+            <span style={{color:pr.listo?"#0f172a":"#94a3b8"}}>{pr.listo?"✓":"○"} {pr.nombre} ×{pr.cantidad}</span>
+            <span style={{fontWeight:600,color:pr.listo?"#0f172a":"#94a3b8"}}>{pesos(pr.precio*pr.cantidad)}</span>
+          </div>)}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,marginTop:4,fontWeight:800,fontSize:16,color:"#0f172a"}}>
+            <span>Total</span><span>{pesos(total)}</span>
+          </div>
+        </div>
+        <BotonGrande onClick={cerrarLista} color="#10b981" icono="✅">Confirmar y guardar compra</BotonGrande>
+        <button onClick={()=>setModalCerrar(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Seguir comprando</button>
+      </Modal>
+    </div>;
+  }
+
+  if(vista==="historial") return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+      <button onClick={()=>{setVista("inicio");setHistorialId(null);}} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+      <h2 style={{margin:0,fontSize:20,fontWeight:700,color:"#0f172a"}}>{historialId&&listaHistorial?"Detalle de compra":"Compras anteriores"}</h2>
+    </div>
+    {historialId&&listaHistorial?<div>
+      <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px",marginBottom:14}}>
+        <div style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:4}}>{listaHistorial.nombre}</div>
+        <div style={{fontSize:14,color:"#94a3b8",marginBottom:14}}>🏪 {listaHistorial.tienda} · {fechaCorta(listaHistorial.fecha)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div style={{background:"#f8fafc",borderRadius:10,padding:"12px",textAlign:"center"}}>
+            <div style={{fontSize:22,fontWeight:800,color:"#0f172a"}}>{pesos(totalLista(listaHistorial.productos))}</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginTop:3}}>Total gastado</div>
+          </div>
+          <div style={{background:"#f8fafc",borderRadius:10,padding:"12px",textAlign:"center"}}>
+            <div style={{fontSize:22,fontWeight:800,color:totalLista(listaHistorial.productos)>listaHistorial.limite?"#ef4444":"#10b981"}}>{listaHistorial.limite>0?pesos(listaHistorial.limite):"—"}</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginTop:3}}>Presupuesto</div>
+          </div>
+        </div>
+      </div>
+      {listaHistorial.productos.map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:12,padding:"12px 16px",marginBottom:8}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:600,color:"#0f172a"}}>{pr.nombre}</div>
+          <div style={{fontSize:13,color:"#94a3b8"}}>{pr.cantidad} {pr.unidad} × {pesos(pr.precio)}</div>
+        </div>
+        <div style={{fontSize:16,fontWeight:700,color:"#0f172a"}}>{pesos(pr.precio*pr.cantidad)}</div>
+      </div>)}
+      <div style={{background:"#0f172a",borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+        <span style={{fontSize:16,fontWeight:600,color:"#fff"}}>Total</span>
+        <span style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pesos(totalLista(listaHistorial.productos))}</span>
+      </div>
+    </div>:<div>
+      {listasCerradas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#94a3b8"}}>
+        <div style={{fontSize:40,marginBottom:10}}>🧾</div><div style={{fontSize:16}}>Sin compras anteriores todavía</div>
+      </div>}
+      {listasCerradas.slice().reverse().map(l=>{
+        const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
+        return <div key={l.id} onClick={()=>setHistorialId(l.id)} style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+          <div style={{width:50,height:50,borderRadius:12,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🧾</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#0f172a"}}>{l.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>{l.tienda} · {fechaCorta(l.fecha)} · {l.productos.length} productos</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:17,fontWeight:700,color:pasado?"#ef4444":"#0f172a"}}>{pesos(total)}</div>
+            {l.limite>0&&<div style={{fontSize:12,color:pasado?"#ef4444":"#10b981",fontWeight:600,marginTop:2}}>{pasado?"⚠️ Pasado":"✓ En límite"}</div>}
+          </div>
+        </div>;
+      })}
+    </div>}
+  </div>;
+  return null;
+}
+
+// ── MÓDULO: METAS ─────────────────────────────────────────────
+function Metas({metas,setMetas,accion,onConsumirAccion}){
+  const[modalNueva,setModalNueva]=useState(false);
+  const[modalAbonar,setModalAbonar]=useState(null);
+  const[abono,setAbono]=useState("");
+  const[confirmarBorrar,setConfirmarBorrar]=useState(null);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[form,setForm]=useState({nombre:"",meta:"",ahorrado:"0",fecha_limite:"",icono:"🎯",color:"#6366f1"});
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  useEffect(()=>{if(accion==="nueva_meta"){setModalNueva(true);onConsumirAccion();}},[accion]);
+  const ICONOS=["🎯","✈️","🏠","🚗","💻","📱","🎓","💍","🌴","🛡️","💊","🐣","⚽","🎸","🐶","🌎"];
+  const guardar=()=>{
+    if(!form.nombre||!form.meta)return;
+    setMetas(p=>[...p,{...form,id:Date.now(),meta:Number(form.meta),ahorrado:Number(form.ahorrado)||0}]);
+    trackEvent("meta_creada",{nombre:form.nombre,meta:Number(form.meta),ahorrado:Number(form.ahorrado)||0,fecha_limite:form.fecha_limite});
+    setForm({nombre:"",meta:"",ahorrado:"0",fecha_limite:"",icono:"🎯",color:"#6366f1"});setModalNueva(false);mostrarToast("¡Meta guardada!");
+  };
+  const abonar=()=>{
+    if(!abono||Number(abono)<=0)return;
+    setMetas(p=>p.map(g=>g.id===modalAbonar.id?{...g,ahorrado:g.ahorrado+Number(abono)}:g));
+    trackEvent("abono_meta",{meta:modalAbonar.nombre,abono:Number(abono),ahorrado_nuevo:modalAbonar.ahorrado+Number(abono),objetivo:modalAbonar.meta});
+    mostrarToast(`¡Abono de ${pesos(Number(abono))} registrado!`);setAbono("");setModalAbonar(null);
+  };
+  const borrar=id=>{setMetas(p=>p.filter(g=>g.id!==id));setConfirmarBorrar(null);mostrarToast("Meta eliminada");};
+  return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={!!confirmarBorrar} onConfirm={()=>borrar(confirmarBorrar?.id)} onCancel={()=>setConfirmarBorrar(null)} texto={`¿Quieres borrar la meta "${confirmarBorrar?.nombre}"?`}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Mis metas</h2>
+      <button onClick={()=>setModalNueva(true)} style={{background:"#8b5cf6",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontSize:14,fontWeight:700,cursor:"pointer"}}>+ Nueva meta</button>
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {metas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#94a3b8"}}>
+        <div style={{fontSize:48,marginBottom:14}}>🎯</div>
+        <div style={{fontSize:18,fontWeight:600,color:"#475569",marginBottom:8}}>Sin metas todavía</div>
+        <div style={{fontSize:15,marginBottom:24}}>¿Para qué quieres ahorrar?</div>
+        <button onClick={()=>setModalNueva(true)} style={{background:"#8b5cf6",color:"#fff",border:"none",borderRadius:12,padding:"14px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>Crear mi primera meta</button>
+      </div>}
+      {metas.map(g=>{
+        const p=Math.min(100,Math.round(g.ahorrado/g.meta*100));
+        const falta=g.meta-g.ahorrado;
+        const diasL=g.fecha_limite?diasPara(g.fecha_limite):null;
+        const mesesL=diasL?Math.max(1,Math.ceil(diasL/30)):null;
+        const mensual=mesesL&&falta>0?Math.ceil(falta/mesesL):0;
+        return <div key={g.id} style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px"}}>
+          <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+            <div style={{width:56,height:56,borderRadius:16,background:g.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>{g.icono}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{fontSize:17,fontWeight:700,color:"#0f172a"}}>{g.nombre}</div>
+                <div style={{fontSize:20,fontWeight:800,color:p>=100?"#10b981":g.color}}>{p}%</div>
+              </div>
+              {g.fecha_limite&&<div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>📅 {fechaCorta(g.fecha_limite)}{diasL>0?` · faltan ${diasL} días`:""}</div>}
+              <div style={{margin:"12px 0 6px"}}><Barra valor={g.ahorrado} max={g.meta} color={p>=100?"#10b981":g.color} alto={10}/></div>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:14,color:"#64748b"}}>Ahorrado: <strong>{pesos(g.ahorrado)}</strong></span>
+                <span style={{fontSize:14,color:"#64748b"}}>Meta: <strong>{pesos(g.meta)}</strong></span>
+              </div>
+              {falta>0&&mensual>0&&<div style={{marginTop:10,background:g.color+"12",borderRadius:10,padding:"8px 12px"}}>
+                <span style={{fontSize:14,color:g.color,fontWeight:600}}>💡 Ahorra {pesos(mensual)} al mes para llegar a tiempo</span>
+              </div>}
+              {p>=100&&<div style={{marginTop:10,background:"#f0fdf4",borderRadius:10,padding:"8px 12px"}}>
+                <span style={{fontSize:15,color:"#16a34a",fontWeight:700}}>🎉 ¡Meta lograda! ¡Felicidades!</span>
+              </div>}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:14,paddingTop:14,borderTop:"1px solid #f1f5f9"}}>
+            <button onClick={()=>{setModalAbonar(g);setAbono("");}} style={{flex:1,background:"#f0fdf4",color:"#16a34a",border:"1.5px solid #86efac",borderRadius:10,padding:"12px",fontSize:15,fontWeight:700,cursor:"pointer"}}>💰 Abonar</button>
+            <button onClick={()=>setConfirmarBorrar(g)} style={{background:"#fef2f2",color:"#dc2626",border:"1.5px solid #fca5a5",borderRadius:10,padding:"12px 16px",fontSize:15,cursor:"pointer"}}>🗑️</button>
+          </div>
+        </div>;
+      })}
+    </div>
+    <Modal open={modalNueva} onClose={()=>setModalNueva(false)} titulo="Nueva meta de ahorro">
+      <Campo etiqueta="¿Para qué estás ahorrando?" ayuda="Ej: Vacaciones, enganche de casa, fondo de emergencia" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="El nombre de tu meta..."/>
+      <div style={{marginBottom:16}}>
+        <label style={{display:"block",fontSize:15,fontWeight:600,color:"#374151",marginBottom:8}}>¿Qué ícono le pones?</label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {ICONOS.map(ic=><button key={ic} onClick={()=>setForm(p=>({...p,icono:ic}))}
+            style={{width:46,height:46,border:`2px solid ${form.icono===ic?"#6366f1":"#e5e7eb"}`,borderRadius:10,background:form.icono===ic?"#eef2ff":"#fff",cursor:"pointer",fontSize:24}}>{ic}</button>)}
+        </div>
+      </div>
+      <Campo etiqueta="¿Cuánto necesitas juntar?" ayuda="El total que quieres tener al final" type="number" value={form.meta} onChange={e=>setForm(p=>({...p,meta:e.target.value}))} placeholder="Ej: 20000" min="1" step="1000"/>
+      <Campo etiqueta="¿Cuánto ya tienes ahorrado?" type="number" value={form.ahorrado} onChange={e=>setForm(p=>({...p,ahorrado:e.target.value}))} placeholder="0 si estás empezando de cero" min="0" step="100"/>
+      <Campo etiqueta="¿Para cuándo quieres lograrlo? (opcional)" type="date" value={form.fecha_limite} onChange={e=>setForm(p=>({...p,fecha_limite:e.target.value}))}/>
+      <BotonGrande onClick={guardar} disabled={!form.nombre||!form.meta} color="#8b5cf6" icono="🎯">Guardar mi meta</BotonGrande>
+      <button onClick={()=>setModalNueva(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+    <Modal open={!!modalAbonar} onClose={()=>setModalAbonar(null)} titulo={`Abonar a: ${modalAbonar?.nombre}`}>
+      {modalAbonar&&<>
+        <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16}}>
+          <div style={{fontSize:14,color:"#64748b",marginBottom:4}}>Lo que llevas ahorrado</div>
+          <div style={{fontSize:28,fontWeight:800,color:"#0f172a",marginBottom:8}}>{pesos(modalAbonar.ahorrado)}</div>
+          <Barra valor={modalAbonar.ahorrado} max={modalAbonar.meta} color={modalAbonar.color} alto={8}/>
+          <div style={{fontSize:14,color:"#94a3b8",marginTop:6}}>Te falta: {pesos(modalAbonar.meta-modalAbonar.ahorrado)}</div>
+        </div>
+        <Campo etiqueta="¿Cuánto vas a abonar hoy?" ayuda="El dinero que estás apartando para esta meta" type="number" value={abono} onChange={e=>setAbono(e.target.value)} placeholder="Ej: 500" min="1" step="100"/>
+        <BotonGrande onClick={abonar} disabled={!abono||Number(abono)<=0} color="#10b981" icono="💰">Registrar mi abono</BotonGrande>
+        <button onClick={()=>setModalAbonar(null)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+      </>}
+    </Modal>
+  </div>;
+}
+
+// ── MÓDULO: MI DINERO (contenedor con 4 subsecciones) ─────────
+function MiDinero({recordatorios,setRecordatorios,presupuesto,setPresupuesto,metas,setMetas,listas,setListas,accion,onConsumirAccion}){
+  const SUB_INICIAL=accion==="nueva_categoria"?"presupuesto":accion==="nueva_meta"?"metas":accion==="nueva_lista"?"compras":"pagos";
+  const[sub,setSub]=useState(SUB_INICIAL);
+  useEffect(()=>{
+    if(accion==="nueva_categoria")setSub("presupuesto");
+    if(accion==="nueva_meta")setSub("metas");
+    if(accion==="nueva_lista")setSub("compras");
+    if(accion==="nuevo_pago"||accion==="nuevo_seguro_auto")setSub("pagos");
+  },[accion]);
+  const TABS=[["pagos","Mis pagos"],["presupuesto","Presupuesto"],["metas","Metas"],["compras","Compras"]];
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:18,overflowX:"auto",paddingBottom:2}}>
+      {TABS.map(([v,l])=><button key={v} onClick={()=>setSub(v)}
+        style={{padding:"10px 16px",borderRadius:99,border:"1.5px solid",fontSize:14,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",borderColor:sub===v?"#6366f1":"#e2e8f0",background:sub===v?"#6366f1":"#fff",color:sub===v?"#fff":"#64748b"}}>
+        {l}
+      </button>)}
+    </div>
+    {sub==="pagos"&&<Recordatorios recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={onConsumirAccion}/>}
+    {sub==="presupuesto"&&<Presupuesto presupuesto={presupuesto} setPresupuesto={setPresupuesto} accion={accion} onConsumirAccion={onConsumirAccion}/>}
+    {sub==="metas"&&<Metas metas={metas} setMetas={setMetas} accion={accion} onConsumirAccion={onConsumirAccion}/>}
+    {sub==="compras"&&<Compras listas={listas} setListas={setListas} accion={accion} onConsumirAccion={onConsumirAccion}/>}
+  </div>;
+}
+
+// ── MÓDULO: MI HOGAR ──────────────────────────────────────────
+const SERVICIOS_HOGAR=[
+  {tipo:"luz",icono:"💡",nombre:"Luz (CFE)",color:"#f59e0b"},
+  {tipo:"agua",icono:"🚰",nombre:"Agua",color:"#06b6d4"},
+  {tipo:"gas",icono:"🔥",nombre:"Gas",color:"#ef4444"},
+  {tipo:"renta",icono:"🏠",nombre:"Renta / Hipoteca",color:"#6366f1"},
+];
+function MiHogar({recordatorios,setRecordatorios,accion,onConsumirAccion}){
+  const[modalNuevo,setModalNuevo]=useState(false);
+  const[confirmarBorrar,setConfirmarBorrar]=useState(null);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[form,setForm]=useState({titulo:"",tipo:"luz",fecha:"",monto:"",cada_cuando:"Cada mes",notas:""});
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  useEffect(()=>{if(accion==="nuevo_servicio_hogar"){setModalNuevo(true);onConsumirAccion();}},[accion]);
+
+  const hogar=recordatorios.filter(r=>r.area==="hogar").sort((a,b)=>diasPara(a.fecha)-diasPara(b.fecha));
+  const proximoDeTipo=tipo=>hogar.filter(r=>r.tipo===tipo).sort((a,b)=>diasPara(a.fecha)-diasPara(b.fecha))[0];
+
+  const guardar=()=>{
+    if(!form.titulo||!form.fecha)return;
+    setRecordatorios(p=>[...p,{...form,id:Date.now(),area:"hogar",monto:Number(form.monto)||0}]);
+    setForm({titulo:"",tipo:"luz",fecha:"",monto:"",cada_cuando:"Cada mes",notas:""});
+    setModalNuevo(false);
+    mostrarToast("¡Recordatorio del hogar guardado!");
+  };
+  const borrar=id=>{setRecordatorios(p=>p.filter(r=>r.id!==id));setConfirmarBorrar(null);mostrarToast("Recordatorio eliminado");};
+
+  return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={!!confirmarBorrar} onConfirm={()=>borrar(confirmarBorrar?.id)} onCancel={()=>setConfirmarBorrar(null)} texto={`¿Quieres borrar "${confirmarBorrar?.titulo}"?`}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Mi hogar</h2>
+      <button onClick={()=>setModalNuevo(true)} style={{background:"#f59e0b",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:600,cursor:"pointer"}}>+ Agregar</button>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+      {SERVICIOS_HOGAR.map(s=>{
+        const prox=proximoDeTipo(s.tipo);
+        return <div key={s.tipo} style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{width:46,height:46,borderRadius:14,background:s.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{s.icono}</div>
+          <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>{s.nombre}</div>
+          {prox?<div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>Próximo: {fechaCorta(prox.fecha)}</div>
+            {prox.monto>0&&<div style={{fontSize:15,fontWeight:700,color:"#0f172a",marginTop:2}}>{pesos(prox.monto)}</div>}
+          </div>:<div style={{fontSize:13,color:"#94a3b8"}}>Sin recordatorio</div>}
+        </div>;
+      })}
+    </div>
+
+    <div style={{fontSize:14,fontWeight:700,color:"#94a3b8",marginBottom:12}}>RECORDATORIOS DEL HOGAR</div>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {hogar.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}>
+        <div style={{fontSize:40,marginBottom:10}}>🏡</div>
+        <div style={{fontSize:16}}>Sin recordatorios del hogar todavía</div>
+      </div>}
+      {hogar.map(r=>{
+        const dias=diasPara(r.fecha),u=urgencia(dias);
+        return <div key={r.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${u.borde}`,padding:"16px",borderLeft:`5px solid ${u.dot}`}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{width:50,height:50,borderRadius:12,background:u.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{ICONOS_TIPO[r.tipo]||"📌"}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:3}}>{r.titulo}</div>
+              <div style={{fontSize:14,color:"#94a3b8",marginBottom:4}}>{fechaLarga(r.fecha)} · {r.cada_cuando}</div>
+              {r.notas&&<div style={{fontSize:13,color:"#64748b",fontStyle:"italic"}}>{r.notas}</div>}
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              {r.monto>0&&<div style={{fontSize:17,fontWeight:800,color:"#0f172a"}}>{pesos(r.monto)}</div>}
+              <div style={{marginTop:4,background:u.fondo,color:u.texto,borderRadius:99,padding:"3px 10px",fontSize:13,fontWeight:700,display:"inline-block"}}>{u.etiqueta}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:14,paddingTop:12,borderTop:"1px solid #f1f5f9"}}>
+            <button onClick={()=>setConfirmarBorrar(r)} style={{background:"#fef2f2",color:"#dc2626",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer"}}>🗑️ Borrar</button>
+          </div>
+        </div>;
+      })}
+    </div>
+
+    <Modal open={modalNuevo} onClose={()=>setModalNuevo(false)} titulo="Nuevo recordatorio del hogar">
+      <Campo etiqueta="¿Qué tienes que pagar o recordar?" ayuda="Ej: Luz CFE, Renta, Gas natural" value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Escribe el nombre..."/>
+      <Selector etiqueta="¿Qué servicio es?" value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))} opciones={[
+        {v:"luz",l:"💡 Luz"},{v:"agua",l:"🚰 Agua"},{v:"gas",l:"🔥 Gas"},{v:"renta",l:"🏠 Renta / Hipoteca"},{v:"servicio",l:"📌 Otro servicio del hogar"}
+      ]}/>
+      <Campo etiqueta="¿En qué fecha vence o hay que pagar?" type="date" value={form.fecha} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))}/>
+      <Campo etiqueta="¿Cuánto hay que pagar? (en pesos)" ayuda="Déjalo en 0 si no sabes el monto exacto" type="number" value={form.monto} onChange={e=>setForm(p=>({...p,monto:e.target.value}))} placeholder="0" min="0" step="10"/>
+      <Selector etiqueta="¿Cada cuánto se repite?" value={form.cada_cuando} onChange={e=>setForm(p=>({...p,cada_cuando:e.target.value}))} opciones={[
+        {v:"Una sola vez",l:"Una sola vez"},{v:"Cada mes",l:"Cada mes"},{v:"Cada 2 meses",l:"Cada 2 meses"},{v:"Cada año",l:"Cada año"}
+      ]}/>
+      <Campo etiqueta="Notas (opcional)" value={form.notas} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} placeholder="Ej: Número de medidor, contrato..."/>
+      <BotonGrande onClick={guardar} disabled={!form.titulo||!form.fecha} color="#f59e0b" icono="✅">Guardar recordatorio</BotonGrande>
+      <button onClick={()=>setModalNuevo(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+  </div>;
+}
+
+// ── MÓDULO: MI AUTO ───────────────────────────────────────────
+function terminacion(placas){const d=(placas||"").match(/\d/g);return d?d[d.length-1]:null;}
+function diaNoCircula(placas){
+  const t=terminacion(placas);
+  if(!t)return null;
+  return HOY_NO_CIRCULA.find(h=>h.terminaciones.includes(t))?.dia||null;
+}
+function MiAuto({autos,setAutos,accion,onConsumirAccion}){
+  const[autoActivoId,setAutoActivoId]=useState(autos[0]?.id||null);
+  const[modalAuto,setModalAuto]=useState(false);
+  const[modalServicio,setModalServicio]=useState(false);
+  const[modalCotizar,setModalCotizar]=useState(false);
+  const[leadEnviado,setLeadEnviado]=useState(false);
+  const[confirmarBorrar,setConfirmarBorrar]=useState(null);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[form,setForm]=useState({marca:"",modelo:"",anio:"",placas:"",color:"",km_actual:"",km_proximo_servicio:""});
+  const[servForm,setServForm]=useState({tipo:"Cambio de aceite",fecha:"",km:"",costo:""});
+  const[cotForm,setCotForm]=useState({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)"});
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  useEffect(()=>{if(accion==="nuevo_auto"){setForm({marca:"",modelo:"",anio:"",placas:"",color:"",km_actual:"",km_proximo_servicio:""});setModalAuto(true);onConsumirAccion();}},[accion]);
+
+  const autoActivo=autos.find(a=>a.id===autoActivoId)||autos[0];
+
+  const guardarAuto=()=>{
+    if(!form.marca||!form.modelo||!form.placas)return;
+    if(autos.length>=5){mostrarToast("Ya tienes 5 autos registrados — el máximo");return;}
+    const nuevo={id:Date.now(),...form,km_actual:Number(form.km_actual)||0,km_proximo_servicio:Number(form.km_proximo_servicio)||0,historial:[]};
+    setAutos(p=>[...p,nuevo]);setAutoActivoId(nuevo.id);setModalAuto(false);mostrarToast("¡Auto registrado!");
+  };
+  const borrarAuto=id=>{setAutos(p=>p.filter(a=>a.id!==id));setConfirmarBorrar(null);mostrarToast("Auto eliminado");};
+  const guardarServicio=()=>{
+    if(!servForm.fecha||!autoActivo)return;
+    setAutos(p=>p.map(a=>a.id===autoActivo.id?{...a,km_actual:Number(servForm.km)||a.km_actual,historial:[{id:Date.now(),...servForm,km:Number(servForm.km)||a.km_actual,costo:Number(servForm.costo)||0},...a.historial]}:a));
+    setServForm({tipo:"Cambio de aceite",fecha:"",km:"",costo:""});setModalServicio(false);mostrarToast("¡Servicio registrado!");
+  };
+  const enviarCotizacion=()=>{
+    if(!cotForm.nombre||!cotForm.telefono||!cotForm.cp)return;
+    trackEvent("lead_seguro_auto",{origen:"mi_auto",auto:{marca:autoActivo.marca,modelo:autoActivo.modelo,anio:autoActivo.anio,placas:autoActivo.placas},contacto:cotForm});
+    setLeadEnviado(true);
+    setTimeout(()=>{setLeadEnviado(false);setModalCotizar(false);setCotForm({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)"});},3000);
+  };
+
+  if(autos.length===0)return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <h2 style={{margin:"0 0 16px",fontSize:22,fontWeight:800,color:"#0f172a"}}>Mi auto</h2>
+    <div style={{textAlign:"center",padding:"48px 0",color:"#94a3b8"}}>
+      <div style={{fontSize:48,marginBottom:14}}>🚗</div>
+      <div style={{fontSize:18,fontWeight:600,color:"#475569",marginBottom:8}}>Sin autos registrados</div>
+      <div style={{fontSize:15,marginBottom:24}}>Registra tu auto para ver Hoy No Circula, verificación y mantenimiento</div>
+      <button onClick={()=>setModalAuto(true)} style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:12,padding:"14px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>+ Registrar mi auto</button>
+    </div>
+    <Modal open={modalAuto} onClose={()=>setModalAuto(false)} titulo="Registrar auto">
+      <FormAuto form={form} setForm={setForm}/>
+      <BotonGrande onClick={guardarAuto} disabled={!form.marca||!form.modelo||!form.placas} color="#1e3a5f" icono="🚗">Guardar mi auto</BotonGrande>
+      <button onClick={()=>setModalAuto(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+  </div>;
+
+  const dia=diaNoCircula(autoActivo.placas);
+  const eng=colorEngomado(autoActivo.anio);
+  const pctServicio=autoActivo.km_proximo_servicio>0?Math.min(100,Math.round(autoActivo.km_actual/autoActivo.km_proximo_servicio*100)):0;
+  const kmFaltan=autoActivo.km_proximo_servicio-autoActivo.km_actual;
+
+  return <div>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={!!confirmarBorrar} onConfirm={()=>borrarAuto(confirmarBorrar?.id)} onCancel={()=>setConfirmarBorrar(null)} texto={`¿Quieres borrar el auto "${confirmarBorrar?.marca} ${confirmarBorrar?.modelo}"?`}/>
+
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0f172a"}}>Mi auto</h2>
+      <button onClick={()=>{setForm({marca:"",modelo:"",anio:"",placas:"",color:"",km_actual:"",km_proximo_servicio:""});setModalAuto(true);}} disabled={autos.length>=5}
+        style={{background:autos.length>=5?"#e5e7eb":"#1e3a5f",color:autos.length>=5?"#9ca3af":"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:600,cursor:autos.length>=5?"not-allowed":"pointer"}}>
+        + Otro auto
+      </button>
+    </div>
+
+    {autos.length>1&&<div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+      {autos.map(a=><button key={a.id} onClick={()=>setAutoActivoId(a.id)}
+        style={{padding:"9px 16px",borderRadius:99,border:"1.5px solid",fontSize:14,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",borderColor:autoActivoId===a.id?"#1e3a5f":"#e2e8f0",background:autoActivoId===a.id?"#1e3a5f":"#fff",color:autoActivoId===a.id?"#fff":"#64748b"}}>
+        🚗 {a.marca} {a.modelo}
+      </button>)}
+    </div>}
+
+    <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:16,padding:"18px",marginBottom:16,color:"#fff"}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4}}>TU AUTO</div>
+      <div style={{fontSize:20,fontWeight:800}}>{autoActivo.marca} {autoActivo.modelo} {autoActivo.anio}</div>
+      <div style={{fontSize:14,color:"rgba(255,255,255,.8)",marginTop:4}}>🔢 {autoActivo.placas} {autoActivo.color?`· ${autoActivo.color}`:""}</div>
+      <button onClick={()=>setConfirmarBorrar(autoActivo)} style={{marginTop:12,background:"rgba(255,255,255,.15)",border:"none",borderRadius:8,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>🗑️ Borrar este auto</button>
+    </div>
+
+    {/* Hoy No Circula */}
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px",marginBottom:16}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:10}}>🚦 Hoy No Circula</div>
+      {dia
+        ?<div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+          <div style={{fontSize:15,color:"#dc2626",fontWeight:700}}>No circula los días: {dia}</div>
+          <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>Según terminación de placa {terminacion(autoActivo.placas)}</div>
+        </div>
+        :<div style={{fontSize:14,color:"#94a3b8",marginBottom:12}}>Agrega las placas para saber el día que no circula</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {HOY_NO_CIRCULA.map(h=><div key={h.dia} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",borderRadius:8,background:h.dia===dia?"#fef2f2":"#f8fafc"}}>
+          <span style={{fontSize:14,fontWeight:h.dia===dia?700:500,color:h.dia===dia?"#dc2626":"#475569"}}>{h.dia}</span>
+          <span style={{fontSize:14,color:"#94a3b8"}}>Terminación {h.terminaciones.join(" y ")}</span>
+        </div>)}
+      </div>
+      <div style={{fontSize:12,color:"#94a3b8",marginTop:10,lineHeight:1.4}}>* Tabla de referencia general. Verifica siempre el calendario oficial vigente de tu ciudad, ya que puede cambiar por contingencia ambiental.</div>
+    </div>
+
+    {/* Verificación */}
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px",marginBottom:16}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:10}}>🔍 Verificación vehicular</div>
+      <div style={{display:"flex",alignItems:"center",gap:12,background:eng.hex+"15",border:`1.5px solid ${eng.hex}55`,borderRadius:10,padding:"12px 14px"}}>
+        <div style={{width:14,height:14,borderRadius:"50%",background:eng.hex,flexShrink:0}}/>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>{eng.color}</div>
+          <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>Modelo {autoActivo.anio} · Calculado por antigüedad</div>
+        </div>
+      </div>
+      <div style={{fontSize:12,color:"#94a3b8",marginTop:10,lineHeight:1.4}}>* Las reglas de verificación cambian por estado y semestre — confírmalas en el sitio oficial antes de verificar.</div>
+    </div>
+
+    {/* Mantenimiento */}
+    <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"16px",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:16,fontWeight:700,color:"#0f172a"}}>🔧 Mantenimiento</div>
+        <button onClick={()=>setModalServicio(true)} style={{background:"#f1f5f9",color:"#475569",border:"none",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Registrar servicio</button>
+      </div>
+      {autoActivo.km_proximo_servicio>0?<>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+          <span style={{fontSize:14,color:"#64748b"}}>{autoActivo.km_actual.toLocaleString()} km</span>
+          <span style={{fontSize:14,color:"#64748b"}}>Próximo: {autoActivo.km_proximo_servicio.toLocaleString()} km</span>
+        </div>
+        <Barra valor={autoActivo.km_actual} max={autoActivo.km_proximo_servicio} color={pctServicio>=90?"#ef4444":"#10b981"} alto={10}/>
+        <div style={{marginTop:8,fontSize:14,fontWeight:600,color:kmFaltan<=0?"#dc2626":kmFaltan<=1000?"#d97706":"#16a34a"}}>
+          {kmFaltan<=0?"⚠️ Ya te toca servicio":`Te faltan ${kmFaltan.toLocaleString()} km para tu próximo servicio`}
+        </div>
+      </>:<div style={{fontSize:14,color:"#94a3b8"}}>Agrega tu kilometraje para llevar control</div>}
+      {autoActivo.historial.length>0&&<div style={{marginTop:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:8}}>HISTORIAL DE SERVICIOS</div>
+        {autoActivo.historial.map(h=><div key={h.id} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:600,color:"#0f172a"}}>{h.tipo}</div>
+            <div style={{fontSize:13,color:"#94a3b8"}}>{fechaCorta(h.fecha)} · {Number(h.km).toLocaleString()} km</div>
+          </div>
+          <div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{pesos(h.costo)}</div>
+        </div>)}
+      </div>}
+    </div>
+
+    {/* Cotizador de seguro */}
+    <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:14,padding:"16px",display:"flex",alignItems:"center",gap:12}}>
+      <span style={{fontSize:28}}>🛡️</span>
+      <div style={{flex:1}}>
+        <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>¿Quieres cotizar el seguro de este auto?</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:2}}>Comparamos varias aseguradoras por ti</div>
+      </div>
+      <button onClick={()=>{setModalCotizar(true);setLeadEnviado(false);}} style={{background:"#fff",color:"#1e3a5f",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>Cotizar</button>
+    </div>
+
+    <Modal open={modalAuto} onClose={()=>setModalAuto(false)} titulo="Registrar otro auto">
+      <FormAuto form={form} setForm={setForm}/>
+      <BotonGrande onClick={guardarAuto} disabled={!form.marca||!form.modelo||!form.placas} color="#1e3a5f" icono="🚗">Guardar auto</BotonGrande>
+      <button onClick={()=>setModalAuto(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+
+    <Modal open={modalServicio} onClose={()=>setModalServicio(false)} titulo="Registrar servicio">
+      <Selector etiqueta="¿Qué se le hizo al auto?" value={servForm.tipo} onChange={e=>setServForm(p=>({...p,tipo:e.target.value}))} opciones={[
+        {v:"Cambio de aceite",l:"🛢️ Cambio de aceite"},{v:"Frenos",l:"🛑 Frenos"},{v:"Llantas",l:"⚙️ Llantas"},
+        {v:"Afinación",l:"🔧 Afinación"},{v:"Batería",l:"🔋 Batería"},{v:"Otro",l:"📌 Otro"}
+      ]}/>
+      <Campo etiqueta="¿Cuándo se hizo?" type="date" value={servForm.fecha} onChange={e=>setServForm(p=>({...p,fecha:e.target.value}))}/>
+      <Campo etiqueta="¿Cuántos km tenía el auto?" type="number" value={servForm.km} onChange={e=>setServForm(p=>({...p,km:e.target.value}))} placeholder={String(autoActivo.km_actual)} min="0"/>
+      <Campo etiqueta="¿Cuánto costó?" type="number" value={servForm.costo} onChange={e=>setServForm(p=>({...p,costo:e.target.value}))} placeholder="0" min="0" step="50"/>
+      <BotonGrande onClick={guardarServicio} disabled={!servForm.fecha} color="#1e3a5f" icono="✅">Guardar servicio</BotonGrande>
+      <button onClick={()=>setModalServicio(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+
+    <Modal open={modalCotizar} onClose={()=>{setModalCotizar(false);setLeadEnviado(false);}} titulo="Cotizar seguro de auto">
+      {leadEnviado
+        ?<div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:56,marginBottom:16}}>✅</div>
+          <div style={{fontSize:20,fontWeight:700,color:"#0f172a",marginBottom:10}}>¡Solicitud enviada!</div>
+          <div style={{fontSize:15,color:"#64748b",lineHeight:1.6}}>Un asesor de UPCO te va a contactar en menos de 24 horas con las mejores opciones para tu coche</div>
+        </div>
+        :<div>
+          <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16}}>
+            <div style={{fontSize:17,fontWeight:700,color:"#0f172a"}}>{autoActivo.marca} {autoActivo.modelo} {autoActivo.anio}</div>
+            <div style={{fontSize:14,color:"#64748b",marginTop:4}}>🔢 {autoActivo.placas}</div>
+          </div>
+          <Campo etiqueta="Tu nombre completo" value={cotForm.nombre} onChange={e=>setCotForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: María González"/>
+          <Campo etiqueta="Tu WhatsApp" type="tel" value={cotForm.telefono} onChange={e=>setCotForm(p=>({...p,telefono:e.target.value}))} placeholder="55 1234 5678"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Campo etiqueta="Código postal" type="tel" value={cotForm.cp} onChange={e=>setCotForm(p=>({...p,cp:e.target.value}))} placeholder="Ej: 06600"/>
+            <Campo etiqueta="Email (opcional)" type="email" value={cotForm.email} onChange={e=>setCotForm(p=>({...p,email:e.target.value}))} placeholder="tu@correo.com"/>
+          </div>
+          <Selector etiqueta="¿Cuándo te podemos llamar?" value={cotForm.mejor_hora} onChange={e=>setCotForm(p=>({...p,mejor_hora:e.target.value}))} opciones={[
+            {v:"Mañana (9 a 12)",l:"🌅 Mañana (9 a 12 hrs)"},{v:"Tarde (12 a 17)",l:"☀️ Tarde (12 a 17 hrs)"},
+            {v:"Noche (17 a 20)",l:"🌆 Noche (17 a 20 hrs)"},{v:"Cualquier hora",l:"📞 A cualquier hora"}
+          ]}/>
+          <BotonGrande onClick={enviarCotizacion} disabled={!cotForm.nombre||!cotForm.telefono||!cotForm.cp} color="#1e3a5f" icono="💬">Quiero mi cotización</BotonGrande>
+          <button onClick={()=>setModalCotizar(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+        </div>
+      }
+    </Modal>
+  </div>;
+}
+function FormAuto({form,setForm}){
+  return <>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Marca" value={form.marca} onChange={e=>setForm(p=>({...p,marca:e.target.value}))} placeholder="Nissan, Toyota..."/>
+      <Campo etiqueta="Modelo" value={form.modelo} onChange={e=>setForm(p=>({...p,modelo:e.target.value}))} placeholder="Versa, Corolla..."/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Año" type="number" value={form.anio} onChange={e=>setForm(p=>({...p,anio:e.target.value}))} placeholder="2020" min="1990" max="2027"/>
+      <Campo etiqueta="Placas" value={form.placas} onChange={e=>setForm(p=>({...p,placas:e.target.value}))} placeholder="ABC-123"/>
+    </div>
+    <Campo etiqueta="Color (opcional)" value={form.color} onChange={e=>setForm(p=>({...p,color:e.target.value}))} placeholder="Blanco, gris..."/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Km actuales" type="number" value={form.km_actual} onChange={e=>setForm(p=>({...p,km_actual:e.target.value}))} placeholder="0" min="0"/>
+      <Campo etiqueta="Próximo servicio a los... km" type="number" value={form.km_proximo_servicio} onChange={e=>setForm(p=>({...p,km_proximo_servicio:e.target.value}))} placeholder="0" min="0"/>
+    </div>
+  </>;
+}
+
+// ── HERRAMIENTAS: conversores genéricos ───────────────────────
+const UNIDADES_DISTANCIA=[{v:"km",l:"Kilómetros",f:1000},{v:"m",l:"Metros",f:1},{v:"cm",l:"Centímetros",f:0.01},{v:"mi",l:"Millas",f:1609.34},{v:"yd",l:"Yardas",f:0.9144},{v:"ft",l:"Pies",f:0.3048},{v:"in",l:"Pulgadas",f:0.0254}];
+const UNIDADES_PESO=[{v:"kg",l:"Kilogramos",f:1},{v:"g",l:"Gramos",f:0.001},{v:"lb",l:"Libras",f:0.453592},{v:"oz",l:"Onzas",f:0.0283495},{v:"ton",l:"Toneladas",f:1000}];
+const UNIDADES_AREA=[{v:"m2",l:"Metros cuadrados",f:1},{v:"km2",l:"Kilómetros cuadrados",f:1e6},{v:"ha",l:"Hectáreas",f:10000},{v:"ft2",l:"Pies cuadrados",f:0.092903},{v:"acre",l:"Acres",f:4046.86}];
+const UNIDADES_VOLUMEN=[{v:"l",l:"Litros",f:1},{v:"ml",l:"Mililitros",f:0.001},{v:"m3",l:"Metros cúbicos",f:1000},{v:"gal",l:"Galones (US)",f:3.78541},{v:"flz",l:"Onzas líquidas",f:0.0295735}];
+
+function ConversorLineal({titulo,icono,unidades,colorAcento="#6366f1"}){
+  const[valor,setValor]=useState("1");
+  const[de,setDe]=useState(unidades[0].v);
+  const[a,setA]=useState(unidades[1].v);
+  const fDe=unidades.find(u=>u.v===de).f, fA=unidades.find(u=>u.v===a).f;
+  const resultado=valor===""?null:(Number(valor)*fDe/fA);
+  return <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px",marginBottom:14}}>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{icono}</span>{titulo}</div>
+    <Campo etiqueta="Cantidad" type="number" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Selector etiqueta="De" value={de} onChange={e=>setDe(e.target.value)} opciones={unidades.map(u=>({v:u.v,l:u.l}))}/>
+      <Selector etiqueta="A" value={a} onChange={e=>setA(e.target.value)} opciones={unidades.map(u=>({v:u.v,l:u.l}))}/>
+    </div>
+    <div style={{background:colorAcento+"12",borderRadius:10,padding:"14px",textAlign:"center",marginTop:4}}>
+      <div style={{fontSize:24,fontWeight:800,color:colorAcento}}>{resultado===null?"—":resultado.toLocaleString("es-MX",{maximumFractionDigits:4})}</div>
+      <div style={{fontSize:13,color:"#94a3b8",marginTop:3}}>{unidades.find(u=>u.v===a).l}</div>
+    </div>
+  </div>;
+}
+
+function ConversorTemperatura(){
+  const[valor,setValor]=useState("0");
+  const[de,setDe]=useState("c");
+  const v=Number(valor)||0;
+  const aC=de==="c"?v:de==="f"?(v-32)*5/9:v-273.15;
+  const aF=aC*9/5+32, aK=aC+273.15;
+  return <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px",marginBottom:14}}>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>🌡️</span>Temperatura</div>
+    <Campo etiqueta="Valor" type="number" value={valor} onChange={e=>setValor(e.target.value)}/>
+    <Selector etiqueta="Unidad de partida" value={de} onChange={e=>setDe(e.target.value)} opciones={[{v:"c",l:"Celsius (°C)"},{v:"f",l:"Fahrenheit (°F)"},{v:"k",l:"Kelvin (K)"}]}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:4}}>
+      {[["°C",aC],["°F",aF],["K",aK]].map(([u,val])=><div key={u} style={{background:"#eef2ff",borderRadius:10,padding:"12px",textAlign:"center"}}>
+        <div style={{fontSize:18,fontWeight:800,color:"#6366f1"}}>{val.toFixed(1)}</div>
+        <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>{u}</div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function ConversorGasolina(){
+  const[valor,setValor]=useState("12");
+  const[de,setDe]=useState("kml");
+  const v=Number(valor)||0;
+  const kml=de==="kml"?v:v*0.425144;
+  const mpg=kml*2.35215;
+  return <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px",marginBottom:14}}>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>⛽</span>Rendimiento de gasolina</div>
+    <Campo etiqueta="Rendimiento" type="number" value={valor} onChange={e=>setValor(e.target.value)}/>
+    <Selector etiqueta="Unidad de partida" value={de} onChange={e=>setDe(e.target.value)} opciones={[{v:"kml",l:"Kilómetros por litro"},{v:"mpg",l:"Millas por galón (mpg)"}]}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+      <div style={{background:"#f0fdf4",borderRadius:10,padding:"12px",textAlign:"center"}}>
+        <div style={{fontSize:18,fontWeight:800,color:"#16a34a"}}>{kml.toFixed(2)}</div>
+        <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>km / litro</div>
+      </div>
+      <div style={{background:"#fffbeb",borderRadius:10,padding:"12px",textAlign:"center"}}>
+        <div style={{fontSize:18,fontWeight:800,color:"#d97706"}}>{mpg.toFixed(2)}</div>
+        <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>millas / galón</div>
+      </div>
+    </div>
+  </div>;
+}
+
+// Cálculo de pago mensual de hipoteca (amortización francesa)
+function pagoMensualHipoteca(monto,tasaAnual,anios){
+  const r=tasaAnual/100/12, n=anios*12;
+  if(r===0)return monto/n;
+  return monto*r/(1-Math.pow(1+r,-n));
+}
+
+// Simulador hipotecario rápido — vive en Herramientas, sin captura de lead
+function SimuladorHipotecarioRapido(){
+  const[valorInmueble,setValorInmueble]=useState("1800000");
+  const[enganchePct,setEnganchePct]=useState("20");
+  const[tasa,setTasa]=useState("11.5");
+  const[anios,setAnios]=useState("20");
+
+  const vi=Number(valorInmueble)||0;
+  const engPct=Number(enganchePct)||0;
+  const enganche=vi*engPct/100;
+  const monto=vi-enganche;
+  const a=Number(anios)||1;
+  const pagoMensual=monto>0?pagoMensualHipoteca(monto,Number(tasa)||0,a):0;
+  const totalPagado=pagoMensual*a*12;
+  const totalIntereses=totalPagado-monto;
+
+  return <div style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"18px",marginBottom:14}}>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:4,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>🏡</span>Simulador hipotecario rápido</div>
+    <div style={{fontSize:13,color:"#94a3b8",marginBottom:14,lineHeight:1.4}}>Una estimación rápida de tu pago mensual. Para una cotización formal con un asesor, ve a Más → Productos financieros.</div>
+    <Campo etiqueta="¿Cuánto cuesta la casa o depa?" type="number" value={valorInmueble} onChange={e=>setValorInmueble(e.target.value)} placeholder="1800000" min="0" step="50000"/>
+    <Campo etiqueta="¿Qué % vas a dar de enganche?" ayuda="Lo normal es entre 10% y 30%" type="number" value={enganchePct} onChange={e=>setEnganchePct(e.target.value)} placeholder="20" min="0" max="90" step="1"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Tasa de interés anual (%)" type="number" value={tasa} onChange={e=>setTasa(e.target.value)} placeholder="11.5" min="0" step="0.1"/>
+      <Selector etiqueta="Plazo" value={anios} onChange={e=>setAnios(e.target.value)} opciones={[{v:"5",l:"5 años"},{v:"10",l:"10 años"},{v:"15",l:"15 años"},{v:"20",l:"20 años"},{v:"25",l:"25 años"},{v:"30",l:"30 años"}]}/>
+    </div>
+    <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:14,padding:"18px",marginTop:8,color:"#fff"}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4}}>TU PAGO MENSUAL ESTIMADO</div>
+      <div style={{fontSize:32,fontWeight:800}}>{pesos(pagoMensual)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(enganche)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:3}}>Tu enganche</div>
+        </div>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(monto)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:3}}>Monto a financiar</div>
+        </div>
+      </div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginTop:12,lineHeight:1.5}}>
+        En {a} años pagarías {pesos(totalPagado)} en total — de eso, {pesos(totalIntereses>0?totalIntereses:0)} serían solo intereses.
+      </div>
+    </div>
+  </div>;
+}
+
+// ── MÓDULO: HERRAMIENTAS ──────────────────────────────────────
+function Herramientas(){
+  const[sub,setSub]=useState("hipoteca");
+  const OPCIONES=[
+    ["hipoteca","🏡 Hipoteca"],["distancia","📏 Distancia"],["peso","⚖️ Peso"],
+    ["temperatura","🌡️ Temperatura"],["area","📐 Área"],["volumen","🧪 Volumen"],["gasolina","⛽ Gasolina"],
+  ];
+  return <div>
+    <h2 style={{margin:"0 0 16px",fontSize:22,fontWeight:800,color:"#0f172a"}}>Herramientas</h2>
+    <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
+      {OPCIONES.map(([v,l])=><button key={v} onClick={()=>setSub(v)}
+        style={{padding:"10px 16px",borderRadius:99,border:"1.5px solid",fontSize:14,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",borderColor:sub===v?"#6366f1":"#e2e8f0",background:sub===v?"#6366f1":"#fff",color:sub===v?"#fff":"#64748b"}}>
+        {l}
+      </button>)}
+    </div>
+    {sub==="hipoteca"&&<SimuladorHipotecarioRapido/>}
+    {sub==="distancia"&&<ConversorLineal titulo="Distancia" icono="📏" unidades={UNIDADES_DISTANCIA} colorAcento="#6366f1"/>}
+    {sub==="peso"&&<ConversorLineal titulo="Peso" icono="⚖️" unidades={UNIDADES_PESO} colorAcento="#10b981"/>}
+    {sub==="temperatura"&&<ConversorTemperatura/>}
+    {sub==="area"&&<ConversorLineal titulo="Área" icono="📐" unidades={UNIDADES_AREA} colorAcento="#f59e0b"/>}
+    {sub==="volumen"&&<ConversorLineal titulo="Volumen" icono="🧪" unidades={UNIDADES_VOLUMEN} colorAcento="#06b6d4"/>}
+    {sub==="gasolina"&&<ConversorGasolina/>}
+  </div>;
+}
+
+// ── MÓDULO: PRODUCTOS FINANCIEROS ─────────────────────────────
+function SimuladorHipotecarioCompleto(){
+  const[valorInmueble,setValorInmueble]=useState("1800000");
+  const[enganchePct,setEnganchePct]=useState("20");
+  const[tasa,setTasa]=useState("11.5");
+  const[anios,setAnios]=useState("20");
+  const[modalLead,setModalLead]=useState(false);
+  const[leadEnviado,setLeadEnviado]=useState(false);
+  const[lead,setLead]=useState({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)",ingreso_mensual:""});
+
+  const vi=Number(valorInmueble)||0;
+  const engPct=Number(enganchePct)||0;
+  const enganche=vi*engPct/100;
+  const monto=vi-enganche;
+  const a=Number(anios)||1;
+  const pagoMensual=monto>0?pagoMensualHipoteca(monto,Number(tasa)||0,a):0;
+  const totalPagado=pagoMensual*a*12;
+  const totalIntereses=totalPagado-monto;
+
+  const enviarLead=()=>{
+    if(!lead.nombre||!lead.telefono||!lead.cp)return;
+    trackEvent("lead_hipoteca",{simulacion:{valor_inmueble:vi,enganche,monto_financiar:monto,tasa:Number(tasa)||0,anios:a,pago_mensual:pagoMensual},contacto:lead});
+    setLeadEnviado(true);
+    setTimeout(()=>{setLeadEnviado(false);setModalLead(false);setLead({nombre:"",telefono:"",cp:"",email:"",mejor_hora:"Mañana (9 a 12)",ingreso_mensual:""});},3000);
+  };
+
+  return <div>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>🏡 Simulador hipotecario</div>
+    <Campo etiqueta="¿Cuánto cuesta la casa o depa?" type="number" value={valorInmueble} onChange={e=>setValorInmueble(e.target.value)} placeholder="1800000" min="0" step="50000"/>
+    <Campo etiqueta="¿Qué % vas a dar de enganche?" ayuda="Lo normal es entre 10% y 30%" type="number" value={enganchePct} onChange={e=>setEnganchePct(e.target.value)} placeholder="20" min="0" max="90" step="1"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Tasa de interés anual (%)" type="number" value={tasa} onChange={e=>setTasa(e.target.value)} placeholder="11.5" min="0" step="0.1"/>
+      <Selector etiqueta="Plazo" value={anios} onChange={e=>setAnios(e.target.value)} opciones={[{v:"5",l:"5 años"},{v:"10",l:"10 años"},{v:"15",l:"15 años"},{v:"20",l:"20 años"},{v:"25",l:"25 años"},{v:"30",l:"30 años"}]}/>
+    </div>
+    <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:14,padding:"18px",marginTop:8,color:"#fff"}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4}}>TU PAGO MENSUAL ESTIMADO</div>
+      <div style={{fontSize:32,fontWeight:800}}>{pesos(pagoMensual)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(enganche)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:3}}>Tu enganche</div>
+        </div>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(monto)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:3}}>Monto a financiar</div>
+        </div>
+      </div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginTop:12,lineHeight:1.5}}>
+        En {a} años pagarías {pesos(totalPagado)} en total — de eso, {pesos(totalIntereses>0?totalIntereses:0)} serían solo intereses.
+      </div>
+    </div>
+    <BotonGrande onClick={()=>setModalLead(true)} color="#1e3a5f" icono="💬">Quiero que un asesor me ayude</BotonGrande>
+
+    <Modal open={modalLead} onClose={()=>setModalLead(false)} titulo="Hablar con un asesor de hipotecas">
+      {leadEnviado
+        ?<div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:56,marginBottom:16}}>✅</div>
+          <div style={{fontSize:20,fontWeight:700,color:"#0f172a",marginBottom:10}}>¡Solicitud enviada!</div>
+          <div style={{fontSize:15,color:"#64748b",lineHeight:1.6}}>Un asesor de UPCO te va a contactar en menos de 24 horas con las mejores opciones de crédito hipotecario</div>
+        </div>
+        :<div>
+          <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16}}>
+            <div style={{fontSize:13,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:".04em",fontWeight:600}}>Tu simulación</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#0f172a"}}>{pesos(pagoMensual)} / mes</div>
+            <div style={{fontSize:14,color:"#64748b",marginTop:4}}>Crédito de {pesos(monto)} a {a} años</div>
+          </div>
+          <Campo etiqueta="Tu nombre completo" value={lead.nombre} onChange={e=>setLead(p=>({...p,nombre:e.target.value}))} placeholder="Ej: María González"/>
+          <Campo etiqueta="Tu WhatsApp" type="tel" value={lead.telefono} onChange={e=>setLead(p=>({...p,telefono:e.target.value}))} placeholder="55 1234 5678"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Campo etiqueta="Código postal" type="tel" value={lead.cp} onChange={e=>setLead(p=>({...p,cp:e.target.value}))} placeholder="Ej: 06600"/>
+            <Campo etiqueta="Email (opcional)" type="email" value={lead.email} onChange={e=>setLead(p=>({...p,email:e.target.value}))} placeholder="tu@correo.com"/>
+          </div>
+          <Campo etiqueta="¿Cuánto ganas al mes? (opcional)" ayuda="Nos ayuda a saber qué tan rápido aprobarías el crédito" type="number" value={lead.ingreso_mensual} onChange={e=>setLead(p=>({...p,ingreso_mensual:e.target.value}))} placeholder="0" min="0" step="1000"/>
+          <Selector etiqueta="¿Cuándo te podemos llamar?" value={lead.mejor_hora} onChange={e=>setLead(p=>({...p,mejor_hora:e.target.value}))} opciones={[
+            {v:"Mañana (9 a 12)",l:"🌅 Mañana (9 a 12 hrs)"},{v:"Tarde (12 a 17)",l:"☀️ Tarde (12 a 17 hrs)"},
+            {v:"Noche (17 a 20)",l:"🌆 Noche (17 a 20 hrs)"},{v:"Cualquier hora",l:"📞 A cualquier hora"}
+          ]}/>
+          <BotonGrande onClick={enviarLead} disabled={!lead.nombre||!lead.telefono||!lead.cp} color="#1e3a5f" icono="💬">Quiero que me contacten</BotonGrande>
+          <button onClick={()=>setModalLead(false)} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+        </div>
+      }
+    </Modal>
+  </div>;
+}
+
+function CalculadoraCETES(){
+  const[monto,setMonto]=useState("50000");
+  const[tasa,setTasa]=useState("11");
+  const[dias,setDias]=useState("182");
+  const m=Number(monto)||0,t=Number(tasa)||0,d=Number(dias)||1;
+  const rendimiento=m*(t/100)*(d/360);
+  const total=m+rendimiento;
+  return <div>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>📈 Calculadora CETES</div>
+    <div style={{fontSize:13,color:"#94a3b8",marginBottom:14,lineHeight:1.4}}>Los CETES son instrumentos de inversión del gobierno mexicano. Esto es solo una estimación — la tasa real cambia en cada subasta.</div>
+    <Campo etiqueta="¿Cuánto vas a invertir?" type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="50000" min="0" step="1000"/>
+    <Campo etiqueta="Tasa anual estimada (%)" type="number" value={tasa} onChange={e=>setTasa(e.target.value)} placeholder="11" min="0" step="0.1"/>
+    <Selector etiqueta="Plazo" value={dias} onChange={e=>setDias(e.target.value)} opciones={[{v:"28",l:"28 días"},{v:"91",l:"91 días"},{v:"182",l:"182 días"},{v:"364",l:"364 días"}]}/>
+    <div style={{background:"linear-gradient(135deg,#10b981,#059669)",borderRadius:14,padding:"18px",marginTop:8,color:"#fff"}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4}}>LO QUE GANARÍAS</div>
+      <div style={{fontSize:28,fontWeight:800}}>{pesos(rendimiento)}</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.8)",marginTop:10}}>Recibirías en total: <strong>{pesos(total)}</strong></div>
+    </div>
+  </div>;
+}
+
+function CalculadoraTDC(){
+  const[saldo,setSaldo]=useState("15000");
+  const[tasa,setTasa]=useState("45");
+  const[pctMinimo,setPctMinimo]=useState("5");
+  const s=Number(saldo)||0,tasaM=(Number(tasa)||0)/100/12,pm=(Number(pctMinimo)||1)/100;
+  let saldoSim=s,meses=0,totalPagado=0,totalInteres=0;
+  while(saldoSim>1&&meses<600){
+    const interes=saldoSim*tasaM;
+    let pago=Math.max(saldoSim*pm,200);
+    if(pago>saldoSim+interes)pago=saldoSim+interes;
+    totalInteres+=interes;
+    totalPagado+=pago;
+    saldoSim=saldoSim+interes-pago;
+    meses++;
+  }
+  return <div>
+    <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:14}}>💳 ¿Cuánto te cuesta pagar solo el mínimo?</div>
+    <Campo etiqueta="¿Cuánto debes en tu tarjeta?" type="number" value={saldo} onChange={e=>setSaldo(e.target.value)} placeholder="15000" min="0" step="500"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <Campo etiqueta="Tasa de interés anual (%)" ayuda="Revísala en tu estado de cuenta" type="number" value={tasa} onChange={e=>setTasa(e.target.value)} placeholder="45" min="0" step="1"/>
+      <Campo etiqueta="% de pago mínimo" type="number" value={pctMinimo} onChange={e=>setPctMinimo(e.target.value)} placeholder="5" min="1" step="0.5"/>
+    </div>
+    <div style={{background:"linear-gradient(135deg,#dc2626,#991b1b)",borderRadius:14,padding:"18px",marginTop:8,color:"#fff"}}>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginBottom:4}}>SI SOLO PAGAS EL MÍNIMO...</div>
+      <div style={{fontSize:28,fontWeight:800}}>{Math.floor(meses/12)} años y {meses%12} meses</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:4}}>para terminar de pagar esta deuda</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(totalInteres)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.8)",marginTop:3}}>Solo en intereses</div>
+        </div>
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px",textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:700}}>{pesos(totalPagado)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.8)",marginTop:3}}>Total que pagarías</div>
+        </div>
+      </div>
+    </div>
+    <div style={{background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:10,padding:"12px 14px",marginTop:14,fontSize:14,color:"#92400e",lineHeight:1.5}}>
+      💡 Si pagas más que el mínimo cada mes, terminas de pagar mucho más rápido y ahorras miles de pesos en intereses.
+    </div>
+  </div>;
+}
+
+function PlaceholderProducto({icono,nombre,desc}){
+  return <div style={{background:"#fff",border:"1.5px dashed #cbd5e1",borderRadius:16,padding:"32px 20px",textAlign:"center"}}>
+    <div style={{fontSize:44,marginBottom:14}}>{icono}</div>
+    <div style={{fontSize:17,fontWeight:700,color:"#0f172a",marginBottom:8}}>{nombre}</div>
+    <div style={{fontSize:14,color:"#94a3b8",lineHeight:1.5,marginBottom:18}}>{desc}</div>
+    <div style={{display:"inline-block",background:"#f1f5f9",color:"#64748b",borderRadius:99,padding:"6px 16px",fontSize:13,fontWeight:600}}>Muy pronto</div>
+  </div>;
+}
+
+function ProductosFinancieros(){
+  const[sub,setSub]=useState("hipoteca");
+  const OPCIONES=[
+    ["hipoteca","🏡 Hipoteca"],["cetes","📈 CETES"],["tdc","💳 Costo de TDC"],["gbm","💹 GBM+"],["vida","🛡️ Seguro de vida"],
+  ];
+  return <div>
+    <h2 style={{margin:"0 0 16px",fontSize:22,fontWeight:800,color:"#0f172a"}}>Productos financieros</h2>
+    <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
+      {OPCIONES.map(([v,l])=><button key={v} onClick={()=>setSub(v)}
+        style={{padding:"10px 16px",borderRadius:99,border:"1.5px solid",fontSize:14,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",borderColor:sub===v?"#6366f1":"#e2e8f0",background:sub===v?"#6366f1":"#fff",color:sub===v?"#fff":"#64748b"}}>
+        {l}
+      </button>)}
+    </div>
+    {sub==="hipoteca"&&<SimuladorHipotecarioCompleto/>}
+    {sub==="cetes"&&<CalculadoraCETES/>}
+    {sub==="tdc"&&<CalculadoraTDC/>}
+    {sub==="gbm"&&<PlaceholderProducto icono="💹" nombre="GBM+" desc="Próximamente vas a poder abrir tu cuenta de inversión GBM+ directo desde Upco Homey."/>}
+    {sub==="vida"&&<PlaceholderProducto icono="🛡️" nombre="Seguro de vida" desc="Próximamente vas a poder cotizar y contratar tu seguro de vida directo desde Upco Homey."/>}
+  </div>;
+}
+
+// ── MÓDULO: MÁS (menú a Mi auto / Herramientas / Productos) ──
+function Mas({autos,setAutos,irAMas}){
+  const[sub,setSub]=useState(irAMas.accion==="nuevo_auto"?"auto":"menu");
+  useEffect(()=>{if(irAMas.accion==="nuevo_auto")setSub("auto");},[irAMas.accion]);
+  if(sub==="auto")return <div>
+    <button onClick={()=>setSub("menu")} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#6366f1",fontWeight:500,marginBottom:16,padding:0}}>← Más</button>
+    <MiAuto autos={autos} setAutos={setAutos} accion={irAMas.accion} onConsumirAccion={irAMas.consumir}/>
+  </div>;
+  if(sub==="herramientas")return <div>
+    <button onClick={()=>setSub("menu")} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#6366f1",fontWeight:500,marginBottom:16,padding:0}}>← Más</button>
+    <Herramientas/>
+  </div>;
+  if(sub==="productos")return <div>
+    <button onClick={()=>setSub("menu")} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#6366f1",fontWeight:500,marginBottom:16,padding:0}}>← Más</button>
+    <ProductosFinancieros/>
+  </div>;
+  const OPCIONES=[
+    {id:"auto",icono:"🚗",nombre:"Mi auto",desc:"Hoy No Circula, verificación, mantenimiento y seguro",color:"#1e3a5f",fondo:"#eff6ff"},
+    {id:"herramientas",icono:"🧰",nombre:"Herramientas",desc:"Conversores e hipoteca rápida",color:"#6366f1",fondo:"#eef2ff"},
+    {id:"productos",icono:"💼",nombre:"Productos financieros",desc:"Hipoteca, CETES, costo de TDC y más",color:"#8b5cf6",fondo:"#f5f3ff"},
+  ];
+  return <div>
+    <h2 style={{margin:"0 0 18px",fontSize:22,fontWeight:800,color:"#0f172a"}}>Más</h2>
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {OPCIONES.map(o=><button key={o.id} onClick={()=>setSub(o.id)}
+        style={{background:"#fff",border:"1.5px solid #e5e7eb",borderRadius:16,padding:"16px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14}}>
+        <div style={{width:52,height:52,borderRadius:14,background:o.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{o.icono}</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:16,fontWeight:700,color:"#0f172a",marginBottom:2}}>{o.nombre}</div>
+          <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.4}}>{o.desc}</div>
+        </div>
+        <div style={{color:"#cbd5e1",fontSize:22}}>›</div>
+      </button>)}
+    </div>
+  </div>;
+}
+
+// ── BOTÓN "+" FLOTANTE Y MENÚ CONTEXTUAL ──────────────────────
+function BotonMasFlotante({onAbrir}){
+  return <button onClick={onAbrir}
+    style={{position:"fixed",bottom:34,left:"50%",transform:"translateX(-50%)",width:60,height:60,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"4px solid #fff",boxShadow:"0 4px 16px rgba(99,102,241,.45)",color:"#fff",fontSize:30,fontWeight:400,cursor:"pointer",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,paddingBottom:2}}>
+    +
+  </button>;
+}
+
+function MenuAgregar({open,onClose,onElegir}){
+  if(!open)return null;
+  const OPCIONES=[
+    {id:"nuevo_pago",icono:"💳",nombre:"Nuevo pago o recordatorio",desc:"Tarjeta, seguro, inversión..."},
+    {id:"nuevo_servicio_hogar",icono:"🏡",nombre:"Recordatorio del hogar",desc:"Luz, agua, gas, renta / hipoteca"},
+    {id:"nueva_meta",icono:"🎯",nombre:"Nueva meta de ahorro",desc:"Para lo que estás juntando dinero"},
+    {id:"nueva_lista",icono:"🛒",nombre:"Nueva lista de compras",desc:"Para tu próxima compra"},
+    {id:"nueva_categoria",icono:"📊",nombre:"Nueva categoría de gasto",desc:"Para tu presupuesto"},
+    {id:"nuevo_auto",icono:"🚗",nombre:"Registrar un auto",desc:"Hasta 5 autos"},
+  ];
+  return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
+    <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"24px 20px 32px",width:"100%",maxWidth:540,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+      <div style={{width:40,height:4,background:"#e2e8f0",borderRadius:99,margin:"0 auto 20px"}}/>
+      <h3 style={{margin:"0 0 18px",fontSize:18,fontWeight:700,color:"#0f172a"}}>¿Qué quieres agregar?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {OPCIONES.map(o=><button key={o.id} onClick={()=>onElegir(o.id)}
+          style={{background:"#f8fafc",border:"1.5px solid #e5e7eb",borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14}}>
+          <div style={{width:46,height:46,borderRadius:12,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,border:"1px solid #e5e7eb"}}>{o.icono}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>{o.nombre}</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>{o.desc}</div>
+          </div>
+        </button>)}
+      </div>
+      <button onClick={onClose} style={{width:"100%",background:"none",border:"none",color:"#94a3b8",fontSize:15,padding:"16px",cursor:"pointer",marginTop:6}}>Cancelar</button>
+    </div>
+  </div>;
+}
+
+// ── APP PRINCIPAL ─────────────────────────────────────────────
+function App(){
+  const[pantalla,setPantalla]=useState("inicio");
+  // Estado personal: se carga de localStorage o, si no existe, de los datos de ejemplo.
+  const[recordatorios,setRecordatorios]=useState(()=>cargar("recordatorios",initRecordatorios));
+  const[presupuesto,setPresupuesto]=useState(()=>cargar("presupuesto",initPresupuesto));
+  const[listas,setListas]=useState(()=>cargar("listas",initListas));
+  const[metas,setMetas]=useState(()=>cargar("metas",initMetas));
+  const[autos,setAutos]=useState(()=>cargar("autos",initAutos));
+  const[menuAgregarAbierto,setMenuAgregarAbierto]=useState(false);
+  const[accion,setAccion]=useState(null);
+
+  // Guarda automáticamente cada estado en localStorage cuando cambia.
+  useEffect(()=>{try{localStorage.setItem("upco_recordatorios",JSON.stringify(recordatorios));}catch(e){}},[recordatorios]);
+  useEffect(()=>{try{localStorage.setItem("upco_presupuesto",JSON.stringify(presupuesto));}catch(e){}},[presupuesto]);
+  useEffect(()=>{try{localStorage.setItem("upco_listas",JSON.stringify(listas));}catch(e){}},[listas]);
+  useEffect(()=>{try{localStorage.setItem("upco_metas",JSON.stringify(metas));}catch(e){}},[metas]);
+  useEffect(()=>{try{localStorage.setItem("upco_autos",JSON.stringify(autos));}catch(e){}},[autos]);
+
+  const urgentesDinero=recordatorios.filter(r=>r.area==="dinero"&&diasPara(r.fecha)<=7).length;
+  const urgentesHogar=recordatorios.filter(r=>r.area==="hogar"&&diasPara(r.fecha)<=7).length;
+
+  const autoPrincipal=autos[0];
+  const diaHoyNoCircula=autoPrincipal?diaNoCircula(autoPrincipal.placas):null;
+  const hoyEsDiaDeNoCircular=diaHoyNoCircula&&new Date().toLocaleDateString("es-MX",{weekday:"long"}).toLowerCase()===diaHoyNoCircula.toLowerCase();
+
+  const NAV=[
+    {id:"inicio",icono:"🏠",label:"Inicio"},
+    {id:"dinero",icono:"💰",label:"Mi dinero",badge:urgentesDinero||null},
+    {id:"hogar",icono:"🏡",label:"Mi hogar",badge:urgentesHogar||null},
+    {id:"mas",icono:"☰",label:"Más"},
+  ];
+
+  const irA=destino=>{setPantalla(destino==="recordatorios"?"dinero":destino);};
+
+  const elegirAccion=id=>{
+    setMenuAgregarAbierto(false);
+    if(id==="nuevo_pago"||id==="nueva_meta"||id==="nueva_lista"||id==="nueva_categoria")setPantalla("dinero");
+    else if(id==="nuevo_servicio_hogar")setPantalla("hogar");
+    else if(id==="nuevo_auto")setPantalla("mas");
+    setAccion(id);
+  };
+  const consumirAccion=()=>setAccion(null);
+
+  const VISTAS={
+    inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} irA={irA}/>,
+    dinero:<MiDinero recordatorios={recordatorios} setRecordatorios={setRecordatorios} presupuesto={presupuesto} setPresupuesto={setPresupuesto} metas={metas} setMetas={setMetas} listas={listas} setListas={setListas} accion={accion} onConsumirAccion={consumirAccion}/>,
+    hogar:<MiHogar recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={consumirAccion}/>,
+    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}}/>,
+  };
+
+  return <div style={{minHeight:"100vh",background:"#f4f6f9",fontFamily:"'Inter',-apple-system,sans-serif"}}>
+    <header style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"0 20px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:38,height:38,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏡</div>
+        <div>
+          <div style={{fontSize:17,fontWeight:800,color:"#0f172a",lineHeight:1}}>Upco Homey</div>
+          <div style={{fontSize:11,color:"#94a3b8",lineHeight:1,marginTop:1}}>Tu asistente financiero</div>
+        </div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        {(urgentesDinero+urgentesHogar)>0&&<div style={{background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"3px 10px"}}>{urgentesDinero+urgentesHogar} urgente{(urgentesDinero+urgentesHogar)>1?"s":""}</div>}
+        <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14}}>
+          {USUARIO.name.split(" ").map(w=>w[0]).slice(0,2).join("")}
+        </div>
+      </div>
+    </header>
+
+    {pantalla==="inicio"&&hoyEsDiaDeNoCircular&&<div style={{maxWidth:600,margin:"16px auto 0",padding:"0 16px"}}>
+      <div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontSize:28}}>🚦</span>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:"#dc2626"}}>Hoy no circula tu {autoPrincipal.marca} {autoPrincipal.modelo}</div>
+          <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>Por terminación de placa {terminacion(autoPrincipal.placas)} — evita la multa</div>
+        </div>
+      </div>
+    </div>}
+
+    <main style={{maxWidth:600,margin:"0 auto",padding:"20px 16px 110px"}}>
+      {VISTAS[pantalla]}
+    </main>
+
+    <BotonMasFlotante onAbrir={()=>setMenuAgregarAbierto(true)}/>
+    <MenuAgregar open={menuAgregarAbierto} onClose={()=>setMenuAgregarAbierto(false)} onElegir={elegirAccion}/>
+
+    <nav style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e5e7eb",display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.06)",paddingBottom:"env(safe-area-inset-bottom)"}}>
+      {NAV.map(n=><button key={n.id} onClick={()=>setPantalla(n.id)}
+        style={{flex:1,padding:"10px 4px 10px",border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative",minHeight:60}}>
+        <span style={{fontSize:24,lineHeight:1}}>{n.icono}</span>
+        <span style={{fontSize:11,fontWeight:pantalla===n.id?700:400,color:pantalla===n.id?"#6366f1":"#9ca3af",lineHeight:1}}>{n.label}</span>
+        {pantalla===n.id&&<div style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:32,height:3,background:"#6366f1",borderRadius:"3px 3px 0 0"}}/>}
+        {n.badge&&<div style={{position:"absolute",top:6,right:"calc(50% - 20px)",background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:700,padding:"1px 5px",minWidth:18,textAlign:"center"}}>{n.badge}</div>}
+      </button>)}
+    </nav>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
+
