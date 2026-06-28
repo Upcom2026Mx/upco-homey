@@ -17,6 +17,8 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',-apple-system,sans-serif;background:#F4F7FB;font-size:16px}
 input,select,button,textarea{font-family:inherit;font-size:16px}
+button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
+button:active{transform:translateY(1px) scale(.99)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:99px}
 /* ── Pantalla de inicio (splash) ── */
@@ -233,6 +235,28 @@ function BotonGrande({children,onClick,color="#10284A",disabled,icono}){
   </button>;
 }
 
+// ── ÍCONOS SVG (estilo línea moderno, color heredado) ─────────
+const PATHS={
+  inicio:<><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/></>,
+  dinero:<><rect x="2.5" y="6" width="19" height="13" rx="2.6"/><path d="M2.5 10.5h19"/><path d="M16.5 15.5h2.2"/></>,
+  hogar:<><path d="M3.5 11 12 3.8l8.5 7.2"/><path d="M5.4 9.7V19a1.2 1.2 0 0 0 1.2 1.2h10.8a1.2 1.2 0 0 0 1.2-1.2V9.7"/><path d="M9.6 20.2v-5.4h4.8v5.4"/></>,
+  mas:<><circle cx="6" cy="6" r="1.4"/><circle cx="12" cy="6" r="1.4"/><circle cx="18" cy="6" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/><circle cx="6" cy="18" r="1.4"/><circle cx="12" cy="18" r="1.4"/><circle cx="18" cy="18" r="1.4"/></>,
+  auto:<><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><path d="M4 11h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1v1.5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V17H9v1.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V17H5a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></>,
+  herramientas:<><path d="M14.7 6.3a3.7 3.7 0 0 0-4.9 4.6l-6 6a1.8 1.8 0 0 0 2.6 2.6l6-6a3.7 3.7 0 0 0 4.6-4.9l-2.3 2.3-2.1-2.1z"/></>,
+  productos:<><path d="M4 7h16v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M4 12h16"/></>,
+  campana:<><path d="M18 8.5a6 6 0 0 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></>,
+};
+function Ico({name,size=24,color="currentColor",stroke=2}){
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{display:"block",flexShrink:0}}>{PATHS[name]||PATHS.mas}</svg>;
+}
+// Monograma de marca: "H" ámbar sobre navy redondeado
+function Monograma({size=38,radio=11}){
+  return <svg width={size} height={size} viewBox="0 0 38 38" style={{display:"block"}}>
+    <rect width="38" height="38" rx={radio} fill="#10284A"/>
+    <text x="19" y="26.5" textAnchor="middle" fontFamily="Inter,sans-serif" fontWeight="800" fontSize="22" fill="#F59E0B">H</text>
+  </svg>;
+}
+
 // ── MÓDULO: INICIO ────────────────────────────────────────────
 function Inicio({recordatorios,presupuesto,metas,irA}){
   const[verResumen,setVerResumen]=useState(false);
@@ -242,9 +266,9 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
   const saludo=hora<12?"Buenos días ☀️":hora<18?"Buenas tardes 🌤️":"Buenas noches 🌙";
 
   const MODULOS=[
-    {id:"dinero",icono:"💰",nombre:"Mi dinero",desc:"Pagos, presupuesto y metas",color:"#10284A",fondo:"#eef2ff",badge:urgentes.filter(r=>r.area==="dinero").length||null},
-    {id:"hogar",icono:"🏡",nombre:"Mi hogar",desc:"Servicios y recordatorios",color:"#f59e0b",fondo:"#fffbeb",badge:urgentes.filter(r=>r.area==="hogar").length||null},
-    {id:"mas",icono:"☰",nombre:"Más",desc:"Auto, herramientas y productos",color:"#1a3a6e",fondo:"#f5f3ff"},
+    {id:"dinero",icono:"dinero",nombre:"Mi dinero",desc:"Pagos, presupuesto y metas",color:"#10284A",fondo:"#eef2ff",badge:urgentes.filter(r=>r.area==="dinero").length||null},
+    {id:"hogar",icono:"hogar",nombre:"Mi hogar",desc:"Servicios y recordatorios",color:"#f59e0b",fondo:"#fffbeb",badge:urgentes.filter(r=>r.area==="hogar").length||null},
+    {id:"mas",icono:"mas",nombre:"Más",desc:"Auto, herramientas y productos",color:"#1a3a6e",fondo:"#f5f3ff"},
   ];
 
   if(verResumen) return <div>
@@ -307,9 +331,9 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
       <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:14}}>¿QUÉ QUIERES HACER?</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         {MODULOS.map(m=><button key={m.id} onClick={()=>irA(m.id)}
-          style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:16,padding:"18px 14px",cursor:"pointer",textAlign:"left",display:"flex",flexDirection:"column",gap:12,position:"relative",minHeight:120}}>
-          {m.badge&&<div style={{position:"absolute",top:12,right:12,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"2px 7px",minWidth:22,textAlign:"center"}}>{m.badge}</div>}
-          <div style={{width:50,height:50,borderRadius:14,background:m.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{m.icono}</div>
+          style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:16,padding:"18px 14px",cursor:"pointer",textAlign:"left",display:"flex",flexDirection:"column",gap:12,position:"relative",minHeight:120,boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+          {m.badge&&<div style={{position:"absolute",top:12,right:12,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"2px 7px",minWidth:22,textAlign:"center",boxShadow:"0 2px 8px rgba(239,68,68,.3)"}}>{m.badge}</div>}
+          <div style={{width:50,height:50,borderRadius:14,background:m.fondo,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 10px ${m.color}22`}}><Ico name={m.icono} size={26} color={m.color} stroke={2.2}/></div>
           <div>
             <div style={{fontSize:15,fontWeight:700,color:"#0a1c35",marginBottom:3}}>{m.nombre}</div>
             <div style={{fontSize:13,color:"#8FA0B4",lineHeight:1.4}}>{m.desc}</div>
@@ -1767,16 +1791,16 @@ function Mas({autos,setAutos,irAMas}){
     <ProductosFinancieros/>
   </div>;
   const OPCIONES=[
-    {id:"auto",icono:"🚗",nombre:"Mi auto",desc:"Hoy No Circula, verificación, mantenimiento y seguro",color:"#10284A",fondo:"#eff6ff"},
-    {id:"herramientas",icono:"🧰",nombre:"Herramientas",desc:"Conversores e hipoteca rápida",color:"#10284A",fondo:"#eef2ff"},
-    {id:"productos",icono:"💼",nombre:"Productos financieros",desc:"Hipoteca, CETES, costo de TDC y más",color:"#1a3a6e",fondo:"#f5f3ff"},
+    {id:"auto",icono:"auto",nombre:"Mi auto",desc:"Hoy No Circula, verificación, mantenimiento y seguro",color:"#10284A",fondo:"#eff6ff"},
+    {id:"herramientas",icono:"herramientas",nombre:"Herramientas",desc:"Conversores e hipoteca rápida",color:"#10284A",fondo:"#eef2ff"},
+    {id:"productos",icono:"productos",nombre:"Productos financieros",desc:"Hipoteca, CETES, costo de TDC y más",color:"#1a3a6e",fondo:"#f5f3ff"},
   ];
   return <div>
     <h2 style={{margin:"0 0 18px",fontSize:22,fontWeight:800,color:"#0a1c35"}}>Más</h2>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       {OPCIONES.map(o=><button key={o.id} onClick={()=>setSub(o.id)}
-        style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:16,padding:"16px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14}}>
-        <div style={{width:52,height:52,borderRadius:14,background:o.fondo,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{o.icono}</div>
+        style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:16,padding:"16px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14,boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+        <div style={{width:52,height:52,borderRadius:14,background:o.fondo,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 4px 10px ${o.color}22`}}><Ico name={o.icono} size={26} color={o.color} stroke={2.2}/></div>
         <div style={{flex:1}}>
           <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:2}}>{o.nombre}</div>
           <div style={{fontSize:13,color:"#8FA0B4",lineHeight:1.4}}>{o.desc}</div>
@@ -1851,10 +1875,10 @@ function App(){
   const hoyEsDiaDeNoCircular=diaHoyNoCircula&&new Date().toLocaleDateString("es-MX",{weekday:"long"}).toLowerCase()===diaHoyNoCircula.toLowerCase();
 
   const NAV=[
-    {id:"inicio",icono:"🏠",label:"Inicio"},
-    {id:"dinero",icono:"💰",label:"Mi dinero",badge:urgentesDinero||null},
-    {id:"hogar",icono:"🏡",label:"Mi hogar",badge:urgentesHogar||null},
-    {id:"mas",icono:"☰",label:"Más"},
+    {id:"inicio",icono:"inicio",label:"Inicio"},
+    {id:"dinero",icono:"dinero",label:"Mi dinero",badge:urgentesDinero||null},
+    {id:"hogar",icono:"hogar",label:"Mi hogar",badge:urgentesHogar||null},
+    {id:"mas",icono:"mas",label:"Más"},
   ];
 
   const irA=destino=>{setPantalla(destino==="recordatorios"?"dinero":destino);};
@@ -1878,15 +1902,15 @@ function App(){
   return <div style={{minHeight:"100vh",background:"#F4F7FB",fontFamily:"'Inter',-apple-system,sans-serif"}}>
     <header style={{background:"#fff",borderBottom:"1px solid #DDE4EE",padding:"0 20px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:38,height:38,background:"linear-gradient(135deg,#10284A,#1a3a6e)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏡</div>
+        <div style={{boxShadow:"0 4px 12px rgba(16,40,74,.22)",borderRadius:11,lineHeight:0}}><Monograma size={38}/></div>
         <div>
-          <div style={{fontSize:17,fontWeight:800,color:"#0a1c35",lineHeight:1}}>Upco Homey</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#0a1c35",lineHeight:1}}>Upco <span style={{color:"#F59E0B"}}>Homey</span></div>
           <div style={{fontSize:11,color:"#8FA0B4",lineHeight:1,marginTop:1}}>Tu asistente financiero</div>
         </div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        {(urgentesDinero+urgentesHogar)>0&&<div style={{background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"3px 10px"}}>{urgentesDinero+urgentesHogar} urgente{(urgentesDinero+urgentesHogar)>1?"s":""}</div>}
-        <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#10284A,#1a3a6e)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14}}>
+        {(urgentesDinero+urgentesHogar)>0&&<div style={{background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"3px 10px",boxShadow:"0 2px 8px rgba(239,68,68,.3)"}}>{urgentesDinero+urgentesHogar} urgente{(urgentesDinero+urgentesHogar)>1?"s":""}</div>}
+        <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#10284A,#1a3a6e)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,boxShadow:"0 3px 10px rgba(16,40,74,.22)"}}>
           {USUARIO.name.split(" ").map(w=>w[0]).slice(0,2).join("")}
         </div>
       </div>
@@ -1911,10 +1935,10 @@ function App(){
 
     <nav style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #DDE4EE",display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.06)",paddingBottom:"env(safe-area-inset-bottom)"}}>
       {NAV.map(n=><button key={n.id} onClick={()=>setPantalla(n.id)}
-        style={{flex:1,padding:"10px 4px 10px",border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative",minHeight:60}}>
-        <span style={{fontSize:24,lineHeight:1}}>{n.icono}</span>
-        <span style={{fontSize:11,fontWeight:pantalla===n.id?700:400,color:pantalla===n.id?"#10284A":"#9ca3af",lineHeight:1}}>{n.label}</span>
-        {pantalla===n.id&&<div style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:32,height:3,background:"#10284A",borderRadius:"3px 3px 0 0"}}/>}
+        style={{flex:1,padding:"10px 4px 10px",border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,position:"relative",minHeight:60}}>
+        <Ico name={n.icono} size={24} color={pantalla===n.id?"#10284A":"#8FA0B4"} stroke={pantalla===n.id?2.4:2}/>
+        <span style={{fontSize:11,fontWeight:pantalla===n.id?700:500,color:pantalla===n.id?"#10284A":"#8FA0B4",lineHeight:1}}>{n.label}</span>
+        {pantalla===n.id&&<div style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:32,height:3,background:"#F59E0B",borderRadius:"3px 3px 0 0"}}/>}
         {n.badge&&<div style={{position:"absolute",top:6,right:"calc(50% - 20px)",background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:700,padding:"1px 5px",minWidth:18,textAlign:"center"}}>{n.badge}</div>}
       </button>)}
     </nav>
