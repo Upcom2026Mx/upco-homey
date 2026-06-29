@@ -13,6 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',-apple-system,sans-serif;background:#F4F7FB;font-size:16px}
@@ -130,32 +131,30 @@ const cargar=(clave,porDefecto)=>{
 const SUPABASE_URL="https://kzztephaegiabintgtdm.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_rHl4SaafTOPo7EJx4M6vjg_5eDFBU90";  // publishable key (pública, segura para el cliente)
 
+// Cliente de Supabase (auth + base de datos). Si la librería no cargó, queda en null y la app sigue funcionando.
+const sb=(window.supabase&&SUPABASE_URL&&SUPABASE_ANON_KEY)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
+// Usuario en sesión (lo actualiza el manejador de auth). Lo usa trackEvent para ligar eventos.
+let USUARIO_ACTUAL=null;
+
 // Registra un evento de negocio: lo respalda en localStorage y lo intenta
 // enviar a Supabase. Nunca bloquea ni rompe la app (try/catch).
 async function trackEvent(evento,payload={}){
-  const registro={event:evento,user_id:"demo_user",payload,created_at:new Date().toISOString()};
+  const uid=(USUARIO_ACTUAL&&USUARIO_ACTUAL.id)||"anon";
+  const registro={event:evento,user_id:uid,payload,created_at:new Date().toISOString()};
   // a) Respaldo local (clave: analytics_events)
   try{
     const prev=JSON.parse(localStorage.getItem("analytics_events")||"[]");
     prev.push(registro);
     localStorage.setItem("analytics_events",JSON.stringify(prev));
   }catch(e){console.log("trackEvent: error guardando local",e);}
-  // b) Envío a Supabase (solo si hay credenciales)
+  // b) Envío a Supabase (usa el cliente con la sesión del usuario)
   try{
-    if(SUPABASE_URL&&SUPABASE_ANON_KEY){
-      await fetch(`${SUPABASE_URL}/rest/v1/analytics_events`,{
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "apikey":SUPABASE_ANON_KEY,
-          "Authorization":`Bearer ${SUPABASE_ANON_KEY}`,
-          "Prefer":"return=minimal",
-        },
-        body:JSON.stringify(registro),
-      });
-      console.log("trackEvent enviado a Supabase:",evento,payload);
+    if(sb){
+      const{error}=await sb.from("analytics_events").insert(registro);
+      if(error)throw error;
+      console.log("trackEvent enviado a Supabase:",evento,uid);
     }else{
-      console.log("trackEvent (solo local, faltan credenciales Supabase):",evento,payload);
+      console.log("trackEvent (solo local, sin Supabase):",evento,payload);
     }
   }catch(e){console.log("trackEvent: error enviando a Supabase",e);}
 }
@@ -1793,7 +1792,7 @@ function ProductosFinancieros(){
 }
 
 // ── MÓDULO: MÁS (menú a Mi auto / Herramientas / Productos) ──
-function Mas({autos,setAutos,irAMas}){
+function Mas({autos,setAutos,irAMas,onCerrarSesion}){
   const[sub,setSub]=useState(irAMas.accion==="nuevo_auto"?"auto":"menu");
   useEffect(()=>{if(irAMas.accion==="nuevo_auto")setSub("auto");},[irAMas.accion]);
   if(sub==="auto")return <div>
@@ -1826,6 +1825,10 @@ function Mas({autos,setAutos,irAMas}){
         <div style={{color:"#cbd5e1",fontSize:22}}>›</div>
       </button>)}
     </div>
+    {onCerrarSesion&&<button onClick={onCerrarSesion}
+      style={{width:"100%",marginTop:20,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      Cerrar sesión
+    </button>}
   </div>;
 }
 
@@ -1867,7 +1870,7 @@ function MenuAgregar({open,onClose,onElegir}){
 }
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────
-function App(){
+function AppPrincipal({onCerrarSesion}){
   const[pantalla,setPantalla]=useState("inicio");
   // Estado personal: se carga de localStorage o, si no existe, de los datos de ejemplo.
   const[recordatorios,setRecordatorios]=useState(()=>cargar("recordatorios",initRecordatorios));
@@ -1914,7 +1917,7 @@ function App(){
     inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} irA={irA}/>,
     dinero:<MiDinero recordatorios={recordatorios} setRecordatorios={setRecordatorios} presupuesto={presupuesto} setPresupuesto={setPresupuesto} metas={metas} setMetas={setMetas} listas={listas} setListas={setListas} accion={accion} onConsumirAccion={consumirAccion}/>,
     hogar:<MiHogar recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={consumirAccion}/>,
-    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}}/>,
+    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onCerrarSesion={onCerrarSesion}/>,
   };
 
   return <div style={{minHeight:"100vh",background:"#F4F7FB",fontFamily:"'Inter',-apple-system,sans-serif"}}>
@@ -1962,6 +1965,120 @@ function App(){
     </nav>
   </div>;
 }
+// ── PANTALLA DE LOGIN (enlace mágico) ─────────────────────────
+function Login(){
+  const[email,setEmail]=useState("");
+  const[enviado,setEnviado]=useState(false);
+  const[cargando,setCargando]=useState(false);
+  const[error,setError]=useState("");
+  const enviar=async()=>{
+    if(!email||!email.includes("@")){setError("Escribe un correo válido.");return;}
+    setCargando(true);setError("");
+    try{
+      const{error}=await sb.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:location.href.split("#")[0].split("?")[0]}});
+      if(error)throw error;
+      setEnviado(true);
+    }catch(e){console.log("login error",e);setError("No pudimos enviar el correo. Inténtalo de nuevo en un momento.");}
+    setCargando(false);
+  };
+  return <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#10284A,#0a1c35)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+    <div style={{boxShadow:"0 12px 40px rgba(0,0,0,.3)",borderRadius:20,marginBottom:24}}><Monograma size={72} radio={20}/></div>
+    <div style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:4}}>Upco <span style={{color:"#F59E0B"}}>Homey</span></div>
+    <div style={{fontSize:15,color:"#8FA0B4",marginBottom:32,textAlign:"center"}}>Tu asistente financiero personal</div>
+    <div style={{background:"#fff",borderRadius:20,padding:"24px 20px",width:"100%",maxWidth:420,boxShadow:"0 12px 40px rgba(0,0,0,.25)"}}>
+      {enviado
+        ?<div style={{textAlign:"center",padding:"12px 0"}}>
+          <div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><Ico name="check" size={56} color="#16a34a"/></div>
+          <div style={{fontSize:19,fontWeight:700,color:"#0a1c35",marginBottom:10}}>¡Revisa tu correo!</div>
+          <div style={{fontSize:15,color:"#53647D",lineHeight:1.6,marginBottom:8}}>Te enviamos un enlace a <strong>{email}</strong>. Ábrelo desde este mismo teléfono para entrar.</div>
+          <div style={{fontSize:13,color:"#8FA0B4",lineHeight:1.5}}>Si no lo ves en unos minutos, revisa la carpeta de <strong>spam</strong> o correo no deseado.</div>
+          <button onClick={()=>{setEnviado(false);setEmail("");}} style={{marginTop:18,background:"none",border:"none",color:"#10284A",fontSize:14,fontWeight:600,cursor:"pointer"}}>Usar otro correo</button>
+        </div>
+        :<div>
+          <div style={{fontSize:18,fontWeight:700,color:"#0a1c35",marginBottom:6}}>Entrar o crear tu cuenta</div>
+          <div style={{fontSize:14,color:"#53647D",marginBottom:18,lineHeight:1.5}}>Escribe tu correo y te mandamos un enlace para entrar. Sin contraseñas que recordar.</div>
+          <Campo etiqueta="Tu correo electrónico" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tucorreo@ejemplo.com"/>
+          {error&&<div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 14px",fontSize:14,color:"#dc2626",marginBottom:8}}>{error}</div>}
+          <BotonGrande onClick={enviar} disabled={cargando} color="#10284A" icono={cargando?"⏳":""}>{cargando?"Enviando...":"Enviar mi enlace de acceso"}</BotonGrande>
+          <div style={{fontSize:12,color:"#8FA0B4",textAlign:"center",marginTop:14,lineHeight:1.5}}>Al entrar aceptas que UPCO use tus datos para ofrecerte productos financieros. Tus datos están protegidos.</div>
+        </div>
+      }
+    </div>
+  </div>;
+}
+
+// ── ONBOARDING (primer ingreso: nombre y WhatsApp) ────────────
+function Onboarding({user,onListo}){
+  const[nombre,setNombre]=useState("");
+  const[whatsapp,setWhatsapp]=useState("");
+  const[cargando,setCargando]=useState(false);
+  const guardar=async()=>{
+    if(!nombre.trim())return;
+    setCargando(true);
+    const perfil={id:user.id,nombre:nombre.trim(),whatsapp:whatsapp.trim(),correo:user.email};
+    try{ if(sb) await sb.from("usuarios").upsert(perfil); }catch(e){console.log("onboarding error",e);}
+    trackEvent("usuario_registrado",{nombre:perfil.nombre,whatsapp:perfil.whatsapp});
+    setCargando(false);
+    onListo(perfil);
+  };
+  return <div style={{minHeight:"100vh",background:"#F4F7FB",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px"}}>
+    <div style={{maxWidth:440,margin:"0 auto",width:"100%"}}>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><Monograma size={56} radio={16}/></div>
+      <h2 style={{fontSize:22,fontWeight:800,color:"#0a1c35",textAlign:"center",marginBottom:6}}>¡Bienvenido! 👋</h2>
+      <p style={{fontSize:15,color:"#53647D",textAlign:"center",marginBottom:24,lineHeight:1.5}}>Cuéntanos cómo te llamas para personalizar tu experiencia.</p>
+      <div style={{background:"#fff",borderRadius:18,padding:"22px 20px",boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+        <Campo etiqueta="¿Cómo te llamas?" value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre completo"/>
+        <Campo etiqueta="Tu WhatsApp (opcional)" ayuda="Para avisarte de tus pagos y enviarte cotizaciones" type="tel" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} placeholder="55 1234 5678"/>
+        <BotonGrande onClick={guardar} disabled={!nombre.trim()||cargando} color="#10284A" icono="✅">{cargando?"Guardando...":"Empezar a usar Upco Homey"}</BotonGrande>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── APP RAÍZ: controla la sesión ──────────────────────────────
+function App(){
+  const[sesion,setSesion]=useState(undefined); // undefined = cargando
+  const[perfil,setPerfil]=useState(null);
+  const[perfilCargado,setPerfilCargado]=useState(false);
+
+  useEffect(()=>{
+    if(!sb){setSesion(null);return;}
+    sb.auth.getSession().then(({data})=>{setSesion(data.session||null);USUARIO_ACTUAL=data.session?data.session.user:null;});
+    const{data:sub}=sb.auth.onAuthStateChange((_e,s)=>{setSesion(s||null);USUARIO_ACTUAL=s?s.user:null;if(!s){setPerfil(null);setPerfilCargado(false);}});
+    return ()=>{try{sub.subscription.unsubscribe();}catch(e){}};
+  },[]);
+
+  useEffect(()=>{
+    if(!sb||!sesion){return;}
+    let activo=true;
+    (async()=>{
+      try{
+        const{data}=await sb.from("usuarios").select("*").eq("id",sesion.user.id).maybeSingle();
+        if(!activo)return;
+        if(data){setPerfil(data);USUARIO.name=data.nombre||USUARIO.name;}
+      }catch(e){console.log("perfil error",e);}
+      if(activo)setPerfilCargado(true);
+    })();
+    return ()=>{activo=false;};
+  },[sesion]);
+
+  const cerrarSesion=async()=>{try{if(sb)await sb.auth.signOut();}catch(e){}setPerfil(null);setPerfilCargado(false);};
+
+  // Sin Supabase configurado: la app funciona sin login (modo local)
+  if(!sb) return <AppPrincipal/>;
+  // Cargando sesión
+  if(sesion===undefined) return <div style={{minHeight:"100vh",background:"#10284A"}}/>;
+  // Sin sesión -> login
+  if(!sesion) return <Login/>;
+  // Con sesión, esperando perfil
+  if(!perfilCargado) return <div style={{minHeight:"100vh",background:"#F4F7FB"}}/>;
+  // Con sesión pero sin perfil -> onboarding
+  if(!perfil) return <Onboarding user={sesion.user} onListo={p=>{setPerfil(p);USUARIO.name=p.nombre||USUARIO.name;}}/>;
+  // Todo listo
+  USUARIO.name=perfil.nombre||USUARIO.name;
+  return <AppPrincipal onCerrarSesion={cerrarSesion}/>;
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 
 // Oculta la pantalla de inicio una vez que la app está montada (mínimo 1.8s para que se vea la animación).
