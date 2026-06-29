@@ -1805,8 +1805,10 @@ function ProductosFinancieros(){
 }
 
 // ── MÓDULO: MÁS (menú a Mi auto / Herramientas / Productos) ──
-function Mas({autos,setAutos,irAMas,onCerrarSesion}){
+function Mas({autos,setAutos,irAMas,onCerrarSesion,onReset}){
   const[sub,setSub]=useState(irAMas.accion==="nuevo_auto"?"auto":"menu");
+  const[confirmarReset,setConfirmarReset]=useState(false);
+  const[toast,setToast]=useState({visible:false,msg:""});
   useEffect(()=>{if(irAMas.accion==="nuevo_auto")setSub("auto");},[irAMas.accion]);
   if(sub==="auto")return <div>
     <button onClick={()=>setSub("menu")} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#10284A",fontWeight:500,marginBottom:16,padding:0}}>← Más</button>
@@ -1838,10 +1840,19 @@ function Mas({autos,setAutos,irAMas,onCerrarSesion}){
         <div style={{color:"#cbd5e1",fontSize:22}}>›</div>
       </button>)}
     </div>
+    {onReset&&<button onClick={()=>setConfirmarReset(true)}
+      style={{width:"100%",marginTop:20,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#53647D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      🗑️ Borrar todos mis datos
+    </button>}
     {onCerrarSesion&&<button onClick={onCerrarSesion}
-      style={{width:"100%",marginTop:20,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      style={{width:"100%",marginTop:12,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
       Cerrar sesión
     </button>}
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={confirmarReset}
+      onConfirm={()=>{onReset();setConfirmarReset(false);setSub("menu");setToast({visible:true,msg:"Datos borrados. Empieza de cero 🎉"});setTimeout(()=>setToast({visible:false,msg:""}),2800);}}
+      onCancel={()=>setConfirmarReset(false)}
+      texto="Se borrarán TODOS tus pagos, recordatorios, presupuesto, metas, compras y autos. Esta acción no se puede deshacer."/>
   </div>;
 }
 
@@ -1926,11 +1937,22 @@ function AppPrincipal({onCerrarSesion}){
   };
   const consumirAccion=()=>setAccion(null);
 
+  // Borra todos los datos personales y deja la app en limpio
+  const reiniciarDatos=()=>{
+    ["recordatorios","presupuesto","listas","metas","autos"].forEach(k=>{try{localStorage.removeItem("upco_"+k);}catch(e){}});
+    setRecordatorios([]);
+    setPresupuesto({ingreso:0,categorias:[]});
+    setListas([]);
+    setMetas([]);
+    setAutos([]);
+    setPantalla("inicio");
+  };
+
   const VISTAS={
     inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} irA={irA}/>,
     dinero:<MiDinero recordatorios={recordatorios} setRecordatorios={setRecordatorios} presupuesto={presupuesto} setPresupuesto={setPresupuesto} metas={metas} setMetas={setMetas} listas={listas} setListas={setListas} accion={accion} onConsumirAccion={consumirAccion}/>,
     hogar:<MiHogar recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={consumirAccion}/>,
-    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onCerrarSesion={onCerrarSesion}/>,
+    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onCerrarSesion={onCerrarSesion} onReset={reiniciarDatos}/>,
   };
 
   return <div style={{minHeight:"100vh",background:"#F4F7FB",fontFamily:"'Inter',-apple-system,sans-serif"}}>
