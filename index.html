@@ -2035,16 +2035,118 @@ function Onboarding({user,onListo}){
   </div>;
 }
 
+// ── BLOQUEO DE LA APP (biometría WebAuthn + PIN) ──────────────
+const lockKey=uid=>"upco_lock_"+uid;
+const leerLock=uid=>{try{return JSON.parse(localStorage.getItem(lockKey(uid))||"null");}catch(e){return null;}};
+const guardarLock=(uid,cfg)=>{try{localStorage.setItem(lockKey(uid),JSON.stringify(cfg));}catch(e){}};
+const borrarLock=uid=>{try{localStorage.removeItem(lockKey(uid));}catch(e){}};
+async function hashPin(pin){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("upco_salt_"+pin));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+const aB64=buf=>btoa(String.fromCharCode.apply(null,new Uint8Array(buf)));
+const deB64=str=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
+async function biometriaDisponible(){
+  try{return !!window.PublicKeyCredential&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();}catch(e){return false;}
+}
+async function registrarBiometria(user){
+  const challenge=crypto.getRandomValues(new Uint8Array(32));
+  const cred=await navigator.credentials.create({publicKey:{
+    challenge, rp:{name:"Upco Homey"},
+    user:{id:new TextEncoder().encode(user.id), name:user.email||"usuario", displayName:USUARIO.name||"Usuario"},
+    pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},
+    timeout:60000, attestation:"none"
+  }});
+  return aB64(cred.rawId);
+}
+async function verificarBiometria(credId){
+  const challenge=crypto.getRandomValues(new Uint8Array(32));
+  await navigator.credentials.get({publicKey:{
+    challenge, allowCredentials:[{type:"public-key",id:deB64(credId)}],
+    userVerification:"required", timeout:60000
+  }});
+  return true;
+}
+
+// Pantalla: configurar el bloqueo por primera vez
+function ConfigurarBloqueo({user,onListo}){
+  const[pin,setPin]=useState("");const[pin2,setPin2]=useState("");
+  const[credId,setCredId]=useState(null);const[bioDisp,setBioDisp]=useState(false);
+  const[error,setError]=useState("");const[cargando,setCargando]=useState(false);
+  useEffect(()=>{biometriaDisponible().then(setBioDisp);},[]);
+  const activarBio=async()=>{
+    setError("");
+    try{const cid=await registrarBiometria(user);setCredId(cid);}
+    catch(e){console.log("bio reg error",e);setError("No se pudo activar huella/rostro. Puedes continuar solo con tu PIN.");}
+  };
+  const guardar=async()=>{
+    if(!/^\d{4,6}$/.test(pin)){setError("El PIN debe ser de 4 a 6 números.");return;}
+    if(pin!==pin2){setError("Los dos PIN no coinciden.");return;}
+    setCargando(true);
+    guardarLock(user.id,{pinHash:await hashPin(pin),credId:credId||null});
+    trackEvent("bloqueo_configurado",{biometria:!!credId});
+    setCargando(false);onListo();
+  };
+  return <div style={{minHeight:"100vh",background:"#F4F7FB",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px"}}>
+    <div style={{maxWidth:440,margin:"0 auto",width:"100%"}}>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><div style={{width:64,height:64,borderRadius:18,background:"#10284A",display:"flex",alignItems:"center",justifyContent:"center"}}><Ico name="escudo" size={32} color="#F59E0B"/></div></div>
+      <h2 style={{fontSize:22,fontWeight:800,color:"#0a1c35",textAlign:"center",marginBottom:6}}>Protege tu información 🔒</h2>
+      <p style={{fontSize:15,color:"#53647D",textAlign:"center",marginBottom:24,lineHeight:1.5}}>Crea un PIN para que solo tú puedas abrir la app. Si tu equipo tiene huella o rostro, actívalo para entrar más rápido.</p>
+      <div style={{background:"#fff",borderRadius:18,padding:"22px 20px",boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+        <Campo etiqueta="Crea tu PIN (4 a 6 números)" type="password" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="••••"/>
+        <Campo etiqueta="Repite tu PIN" type="password" value={pin2} onChange={e=>setPin2(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="••••"/>
+        {bioDisp&&<button onClick={activarBio} style={{width:"100%",background:credId?"#f0fdf4":"#eef2ff",border:`1.5px solid ${credId?"#86efac":"#c7d2fe"}`,borderRadius:12,padding:"14px",fontSize:15,fontWeight:600,color:credId?"#16a34a":"#10284A",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:8}}>
+          {credId?"✅ Huella / rostro activado":"👆 Activar huella o rostro (opcional)"}
+        </button>}
+        {error&&<div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 14px",fontSize:14,color:"#dc2626",marginBottom:8}}>{error}</div>}
+        <BotonGrande onClick={guardar} disabled={cargando} color="#10284A" icono="🔒">{cargando?"Guardando...":"Activar protección"}</BotonGrande>
+      </div>
+    </div>
+  </div>;
+}
+
+// Pantalla: desbloquear (cada vez que se abre la app)
+function Desbloquear({user,lock,onOk,onOlvido}){
+  const[pin,setPin]=useState("");const[error,setError]=useState("");const[intentando,setIntentando]=useState(false);
+  const probarBio=async()=>{
+    setError("");setIntentando(true);
+    try{await verificarBiometria(lock.credId);onOk();}
+    catch(e){console.log("bio get error",e);setError("No se reconoció. Usa tu PIN o intenta de nuevo.");}
+    setIntentando(false);
+  };
+  const probarPin=async()=>{
+    if(!pin)return;
+    const h=await hashPin(pin);
+    if(h===lock.pinHash)onOk();else{setError("PIN incorrecto.");setPin("");}
+  };
+  return <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#10284A,#0a1c35)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+    <div style={{boxShadow:"0 12px 40px rgba(0,0,0,.3)",borderRadius:20,marginBottom:20}}><Monograma size={64} radio={18}/></div>
+    <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:4}}>App bloqueada</div>
+    <div style={{fontSize:14,color:"#8FA0B4",marginBottom:28,textAlign:"center"}}>Hola {USUARIO.name.split(" ")[0]}, confirma que eres tú</div>
+    <div style={{background:"#fff",borderRadius:20,padding:"24px 20px",width:"100%",maxWidth:400,boxShadow:"0 12px 40px rgba(0,0,0,.25)"}}>
+      {lock.credId&&<button onClick={probarBio} disabled={intentando} style={{width:"100%",background:"#10284A",color:"#fff",border:"none",borderRadius:12,padding:"15px",fontSize:16,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:16}}>
+        👆 {intentando?"Verificando...":"Desbloquear con huella / rostro"}
+      </button>}
+      <Campo etiqueta="O ingresa tu PIN" type="password" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="••••"/>
+      {error&&<div style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"10px 14px",fontSize:14,color:"#dc2626",marginBottom:8}}>{error}</div>}
+      <BotonGrande onClick={probarPin} disabled={!pin} color="#10284A" icono="🔓">Entrar</BotonGrande>
+      <button onClick={onOlvido} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:14,padding:"14px",cursor:"pointer",marginTop:4}}>¿Olvidaste tu PIN? Volver a entrar por correo</button>
+    </div>
+  </div>;
+}
+
 // ── APP RAÍZ: controla la sesión ──────────────────────────────
 function App(){
   const[sesion,setSesion]=useState(undefined); // undefined = cargando
   const[perfil,setPerfil]=useState(null);
   const[perfilCargado,setPerfilCargado]=useState(false);
+  const[desbloqueado,setDesbloqueado]=useState(false);
 
   useEffect(()=>{
     if(!sb){setSesion(null);return;}
     sb.auth.getSession().then(({data})=>{setSesion(data.session||null);USUARIO_ACTUAL=data.session?data.session.user:null;});
-    const{data:sub}=sb.auth.onAuthStateChange((_e,s)=>{setSesion(s||null);USUARIO_ACTUAL=s?s.user:null;if(!s){setPerfil(null);setPerfilCargado(false);}});
+    const{data:sub}=sb.auth.onAuthStateChange((_e,s)=>{setSesion(s||null);USUARIO_ACTUAL=s?s.user:null;if(!s){setPerfil(null);setPerfilCargado(false);setDesbloqueado(false);}});
     return ()=>{try{sub.subscription.unsubscribe();}catch(e){}};
   },[]);
 
@@ -2062,7 +2164,8 @@ function App(){
     return ()=>{activo=false;};
   },[sesion]);
 
-  const cerrarSesion=async()=>{try{if(sb)await sb.auth.signOut();}catch(e){}setPerfil(null);setPerfilCargado(false);};
+  const cerrarSesion=async()=>{try{if(sb)await sb.auth.signOut();}catch(e){}setPerfil(null);setPerfilCargado(false);setDesbloqueado(false);};
+  const olvidoPin=async()=>{if(sesion)borrarLock(sesion.user.id);await cerrarSesion();};
 
   // Sin Supabase configurado: la app funciona sin login (modo local)
   if(!sb) return <AppPrincipal/>;
@@ -2074,8 +2177,12 @@ function App(){
   if(!perfilCargado) return <div style={{minHeight:"100vh",background:"#F4F7FB"}}/>;
   // Con sesión pero sin perfil -> onboarding
   if(!perfil) return <Onboarding user={sesion.user} onListo={p=>{setPerfil(p);USUARIO.name=p.nombre||USUARIO.name;}}/>;
-  // Todo listo
   USUARIO.name=perfil.nombre||USUARIO.name;
+  // Bloqueo de la app: configurar (primera vez) o desbloquear (cada apertura)
+  const lock=leerLock(sesion.user.id);
+  if(!lock) return <ConfigurarBloqueo user={sesion.user} onListo={()=>setDesbloqueado(true)}/>;
+  if(!desbloqueado) return <Desbloquear user={sesion.user} lock={lock} onOk={()=>setDesbloqueado(true)} onOlvido={olvidoPin}/>;
+  // Todo listo y desbloqueado
   return <AppPrincipal onCerrarSesion={cerrarSesion}/>;
 }
 
