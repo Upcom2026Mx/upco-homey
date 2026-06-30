@@ -77,10 +77,14 @@ const initPresupuesto={
 };
 
 const initListas=[
-  {id:1,nombre:"Super semanal",tienda:"Walmart",limite:800,fecha:"2026-06-15",estado:"cerrada",
-   productos:[{id:1,nombre:"Leche",cantidad:2,unidad:"litros",precio:28,listo:true},{id:2,nombre:"Pollo",cantidad:1.5,unidad:"kg",precio:85,listo:true},{id:3,nombre:"Pan integral",cantidad:1,unidad:"pieza",precio:50,listo:true}]},
-  {id:2,nombre:"Despensa quincenal",tienda:"Costco",limite:2500,fecha:"2026-06-20",estado:"cerrada",
-   productos:[{id:1,nombre:"Aceite",cantidad:2,unidad:"litros",precio:90,listo:true},{id:2,nombre:"Arroz",cantidad:5,unidad:"kg",precio:75,listo:true}]},
+  {id:1,nombre:"Super semanal",categoria:"Despensa",tienda:"Walmart",limite:800,fecha:"2026-06-15",estado:"cerrada",
+   productos:[{id:1,nombre:"Leche",cantidad:2,unidad:"litros",precio:28,promo:"",listo:true},{id:2,nombre:"Pollo",cantidad:1.5,unidad:"kg",precio:85,promo:"",listo:true},{id:3,nombre:"Pan integral",cantidad:1,unidad:"pieza",precio:50,promo:"",listo:true}]},
+  {id:2,nombre:"Despensa quincenal",categoria:"Súper",tienda:"Costco",limite:2500,fecha:"2026-06-20",estado:"cerrada",
+   productos:[{id:1,nombre:"Aceite",cantidad:2,unidad:"litros",precio:90,promo:"3x2",listo:true},{id:2,nombre:"Arroz",cantidad:5,unidad:"kg",precio:75,promo:"",listo:true}]},
+  {id:3,nombre:"Ropa de temporada",categoria:"Ropa",tienda:"Liverpool",limite:3000,fecha:"2026-05-30",estado:"cerrada",
+   productos:[{id:1,nombre:"Playeras",cantidad:3,unidad:"pieza",precio:250,promo:"2x1",listo:true},{id:2,nombre:"Pantalón",cantidad:1,unidad:"pieza",precio:600,promo:"",listo:true}]},
+  {id:4,nombre:"Despensa de la semana",categoria:"Despensa",tienda:"Soriana",limite:1200,fecha:"2026-06-29",estado:"lista",
+   productos:[{id:1,nombre:"Huevos",cantidad:1,unidad:"caja",precio:0,promo:"",listo:false},{id:2,nombre:"Jitomate",cantidad:1,unidad:"kg",precio:0,promo:"",listo:false},{id:3,nombre:"Detergente",cantidad:1,unidad:"pieza",precio:0,promo:"",listo:false}]},
 ];
 
 const initMetas=[
@@ -783,62 +787,69 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
   const[modalCerrar,setModalCerrar]=useState(false);
   const[historialId,setHistorialId]=useState(null);
   const[toast,setToast]=useState({visible:false,msg:""});
-  const[listaForm,setListaForm]=useState({nombre:"",tienda:"Walmart",limite:""});
-  const[prodForm,setProdForm]=useState({nombre:"",cantidad:"1",unidad:"pieza",precio:""});
+  const[listaForm,setListaForm]=useState({nombre:"",categoria:"Despensa",tienda:"Walmart",limite:""});
+  const[prodForm,setProdForm]=useState({nombre:"",cantidad:"1",unidad:"pieza"});
   const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
   useEffect(()=>{if(accion==="nueva_lista"){setVista("inicio");setModalNueva(true);onConsumirAccion();}},[accion]);
+  const TIENDAS=["Walmart","Soriana","Chedraui","Costco","Sam's Club","Bodega Aurrerá","La Comer","Mega Comercial","HEB","Mercado local","Central de Abastos","OXXO","Liverpool","Coppel","Suburbia","Home Depot","Farmacia","Amazon","Mercado Libre","Otra tienda"];
+  const CATEGORIAS=["Despensa","Súper","Ropa","Hogar","Reparaciones","Entretenimiento","Farmacia","Mascotas","Regalos","Otro"];
   const listaActiva=listas.find(l=>l.id===listaActivaId);
-  const listasAbiertas=listas.filter(l=>l.estado==="abierta");
+  const activas=listas.filter(l=>l.estado==="lista"||l.estado==="comprando");
   const listasCerradas=listas.filter(l=>l.estado==="cerrada");
   const listaHistorial=listas.find(l=>l.id===historialId);
-  const TIENDAS=["Walmart","Costco","Soriana","Chedraui","Mercado local","OXXO","Bodega Aurrera","Otro"];
-  const totalLista=prods=>prods.reduce((s,p)=>s+p.precio*p.cantidad,0);
+  const precioItem=p=>{const n=Number(p.cantidad)||0,pr=Number(p.precio)||0;if(p.promo==="2x1")return Math.ceil(n/2)*pr;if(p.promo==="3x2")return (n-Math.floor(n/3))*pr;return n*pr;};
+  const totalComprado=prods=>prods.filter(p=>p.listo).reduce((s,p)=>s+precioItem(p),0);
+  const actualizar=(id,fn)=>setListas(p=>p.map(l=>l.id===id?fn(l):l));
   const crearLista=()=>{
     if(!listaForm.nombre)return;
-    const nueva={id:Date.now(),nombre:listaForm.nombre,tienda:listaForm.tienda,limite:Number(listaForm.limite)||0,fecha:new Date().toISOString().split("T")[0],estado:"abierta",productos:[]};
-    setListas(p=>[...p,nueva]);setListaActivaId(nueva.id);setListaForm({nombre:"",tienda:"Walmart",limite:""});setModalNueva(false);setVista("activa");
+    const nueva={id:Date.now(),nombre:listaForm.nombre,categoria:listaForm.categoria,tienda:listaForm.tienda,limite:Number(listaForm.limite)||0,fecha:new Date().toISOString().split("T")[0],estado:"lista",productos:[]};
+    setListas(p=>[...p,nueva]);setListaActivaId(nueva.id);setListaForm({nombre:"",categoria:"Despensa",tienda:"Walmart",limite:""});setModalNueva(false);setVista("armar");
   };
   const agregarProducto=()=>{
     if(!prodForm.nombre||!listaActivaId)return;
-    setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:[...l.productos,{id:Date.now(),nombre:prodForm.nombre,cantidad:Number(prodForm.cantidad)||1,unidad:prodForm.unidad,precio:Number(prodForm.precio)||0,listo:false}]}:l));
-    setProdForm({nombre:"",cantidad:"1",unidad:"pieza",precio:""});setModalProducto(false);
+    actualizar(listaActivaId,l=>({...l,productos:[...l.productos,{id:Date.now(),nombre:prodForm.nombre,cantidad:Number(prodForm.cantidad)||1,unidad:prodForm.unidad,precio:0,promo:"",listo:false}]}));
+    setProdForm({nombre:"",cantidad:"1",unidad:"pieza"});setModalProducto(false);
   };
-  const marcarProducto=pid=>setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:l.productos.map(pr=>pr.id===pid?{...pr,listo:!pr.listo}:pr)}:l));
-  const quitarProducto=pid=>setListas(p=>p.map(l=>l.id===listaActivaId?{...l,productos:l.productos.filter(pr=>pr.id!==pid)}:l));
-  const cerrarLista=()=>{setListas(p=>p.map(l=>l.id===listaActivaId?{...l,estado:"cerrada"}:l));setModalCerrar(false);setVista("inicio");setListaActivaId(null);mostrarToast("¡Compra cerrada y guardada!");};
+  const marcarProducto=pid=>actualizar(listaActivaId,l=>({...l,productos:l.productos.map(pr=>pr.id===pid?{...pr,listo:!pr.listo}:pr)}));
+  const setPrecio=(pid,val)=>actualizar(listaActivaId,l=>({...l,productos:l.productos.map(pr=>pr.id===pid?{...pr,precio:val}:pr)}));
+  const setPromo=(pid,val)=>actualizar(listaActivaId,l=>({...l,productos:l.productos.map(pr=>pr.id===pid?{...pr,promo:pr.promo===val?"":val}:pr)}));
+  const quitarProducto=pid=>actualizar(listaActivaId,l=>({...l,productos:l.productos.filter(pr=>pr.id!==pid)}));
+  const comenzarCompra=()=>{actualizar(listaActivaId,l=>({...l,estado:"comprando"}));setVista("comprando");};
+  const cerrarLista=()=>{actualizar(listaActivaId,l=>({...l,estado:"cerrada",fecha:new Date().toISOString().split("T")[0]}));setModalCerrar(false);setVista("inicio");setListaActivaId(null);mostrarToast("¡Compra guardada en tu historial!");};
 
   if(vista==="inicio") return <div>
     <Toast msg={toast.msg} visible={toast.visible}/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:8}}>
       <h2 style={{margin:0,fontSize:22,fontWeight:800,color:"#0a1c35"}}>Mis compras</h2>
       <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>setVista("historial")} style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:500,cursor:"pointer"}}>📋 Anteriores</button>
-        <button onClick={()=>setModalNueva(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer"}}>+ Nueva lista</button>
+        <button onClick={()=>setVista("reporte")} style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,padding:"10px 12px",fontSize:13,fontWeight:600,cursor:"pointer"}}>📊 Reporte</button>
+        <button onClick={()=>{setHistorialId(null);setVista("historial");}} style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,padding:"10px 12px",fontSize:13,fontWeight:600,cursor:"pointer"}}>📋 Anteriores</button>
+        <button onClick={()=>setModalNueva(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer"}}>+ Nueva</button>
       </div>
     </div>
-    {listasAbiertas.map(l=>{
-      const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
-      return <div key={l.id} onClick={()=>{setListaActivaId(l.id);setVista("activa");}}
-        style={{background:"#fff",border:`2px solid ${pasado?"#fca5a5":"#a5f3c0"}`,borderRadius:16,padding:"18px",marginBottom:14,cursor:"pointer"}}>
+    {activas.map(l=>{
+      const comprando=l.estado==="comprando";const total=totalComprado(l.productos);const pasado=l.limite>0&&total>l.limite;
+      return <div key={l.id} onClick={()=>{setListaActivaId(l.id);setVista(comprando?"comprando":"armar");}}
+        style={{background:"#fff",border:`2px solid ${comprando?(pasado?"#fca5a5":"#a5f3c0"):"#DDE4EE"}`,borderRadius:16,padding:"18px",marginBottom:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(16,40,74,.06)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-          <div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
               <span style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{l.nombre}</span>
-              <span style={{background:"#d1fae5",color:"#065f46",fontSize:12,fontWeight:600,padding:"2px 8px",borderRadius:99}}>Activa</span>
+              <span style={{background:comprando?"#d1fae5":"#eef2ff",color:comprando?"#065f46":"#10284A",fontSize:12,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{comprando?"Comprando":"Por comprar"}</span>
             </div>
-            <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {l.tienda} · {l.productos.length} productos</div>
+            <div style={{fontSize:13,color:"#8FA0B4"}}>🏪 {l.tienda} · {l.categoria||"Otro"} · {l.productos.length} productos</div>
           </div>
-          <div style={{textAlign:"right"}}>
+          {comprando&&<div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:20,fontWeight:800,color:pasado?"#ef4444":"#0a1c35"}}>{pesos(total)}</div>
-            {l.limite>0&&<div style={{fontSize:13,color:"#8FA0B4"}}>Límite: {pesos(l.limite)}</div>}
-          </div>
+            {l.limite>0&&<div style={{fontSize:13,color:"#8FA0B4"}}>de {pesos(l.limite)}</div>}
+          </div>}
         </div>
-        {l.limite>0&&<Barra valor={total} max={l.limite} color={pasado?"#ef4444":"#10b981"} alto={6}/>}
-        <div style={{marginTop:12,fontSize:14,color:"#10b981",fontWeight:600}}>Toca para continuar comprando →</div>
+        {comprando&&l.limite>0&&<Barra valor={total} max={l.limite} color={pasado?"#ef4444":"#10b981"} alto={6}/>}
+        <div style={{marginTop:12,fontSize:14,color:"#10b981",fontWeight:600}}>{comprando?"Toca para seguir comprando →":"Toca para armar o comenzar la compra →"}</div>
       </div>;
     })}
-    {listasAbiertas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#8FA0B4"}}>
-      <div style={{fontSize:48,marginBottom:14}}>🛒</div>
+    {activas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#8FA0B4"}}>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><Ico name="cart" size={48} color="#cbd5e1"/></div>
       <div style={{fontSize:18,fontWeight:600,color:"#53647D",marginBottom:8}}>Sin listas activas</div>
       <div style={{fontSize:15,marginBottom:24}}>Crea una lista para tu próxima compra</div>
       <button onClick={()=>setModalNueva(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:12,padding:"14px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>+ Crear mi primera lista</button>
@@ -846,13 +857,13 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
     {listasCerradas.length>0&&<div style={{marginTop:8}}>
       <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:12}}>COMPRAS RECIENTES</div>
       {listasCerradas.slice(-3).reverse().map(l=>{
-        const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
+        const total=totalComprado(l.productos);const pasado=l.limite>0&&total>l.limite;
         return <div key={l.id} onClick={()=>{setHistorialId(l.id);setVista("historial");}}
-          style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
-          <div style={{width:48,height:48,borderRadius:12,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🧾</div>
+          style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+          <div style={{width:48,height:48,borderRadius:12,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="cart" size={24} color="#10284A"/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{l.nombre}</div>
-            <div style={{fontSize:13,color:"#8FA0B4"}}>{l.tienda} · {fechaCorta(l.fecha)}</div>
+            <div style={{fontSize:13,color:"#8FA0B4"}}>{l.tienda} · {l.categoria||"Otro"} · {fechaCorta(l.fecha)}</div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:16,fontWeight:700,color:pasado?"#ef4444":"#0a1c35"}}>{pesos(total)}</div>
@@ -862,34 +873,81 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
       })}
     </div>}
     <Modal open={modalNueva} onClose={()=>setModalNueva(false)} titulo="Nueva lista de compras">
-      <Campo etiqueta="¿Cómo se llama esta lista?" ayuda="Ej: Super semanal, Despensa del mes, Cosas del baño" value={listaForm.nombre} onChange={e=>setListaForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la lista..."/>
+      <Campo etiqueta="¿Cómo se llama esta lista?" ayuda="Ej: Super semanal, Ropa de temporada, Reparación del baño" value={listaForm.nombre} onChange={e=>setListaForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la lista..."/>
+      <Selector etiqueta="¿De qué es esta compra?" ayuda="Sirve para tu reporte de gastos" value={listaForm.categoria} onChange={e=>setListaForm(p=>({...p,categoria:e.target.value}))} opciones={CATEGORIAS.map(c=>({v:c,l:c}))}/>
       <Selector etiqueta="¿En qué tienda vas a comprar?" value={listaForm.tienda} onChange={e=>setListaForm(p=>({...p,tienda:e.target.value}))} opciones={TIENDAS.map(t=>({v:t,l:t}))}/>
-      <Campo etiqueta="¿Cuánto puedes gastar? (opcional)" ayuda="Te avisamos si te estás pasando del presupuesto" type="number" value={listaForm.limite} onChange={e=>setListaForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 1500" min="0" step="50"/>
-      <BotonGrande onClick={crearLista} disabled={!listaForm.nombre} color="#10b981" icono="🛒">Crear lista y empezar</BotonGrande>
+      <Campo etiqueta="¿Cuánto puedes gastar? (opcional)" ayuda="Te avisamos si te estás pasando" type="number" value={listaForm.limite} onChange={e=>setListaForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 1500" min="0" step="50"/>
+      <BotonGrande onClick={crearLista} disabled={!listaForm.nombre} color="#10b981" icono="📝">Crear y armar mi lista</BotonGrande>
       <button onClick={()=>setModalNueva(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
     </Modal>
   </div>;
 
-  if(vista==="activa"&&listaActiva){
-    const total=totalLista(listaActiva.productos);
-    const enCarrito=listaActiva.productos.filter(p=>p.listo).reduce((s,p)=>s+p.precio*p.cantidad,0);
-    const pendientes=listaActiva.productos.filter(p=>!p.listo);
-    const listos=listaActiva.productos.filter(p=>p.listo);
-    const pasado=listaActiva.limite>0&&total>listaActiva.limite;
+  if(vista==="armar"&&listaActiva){
+    const prods=listaActiva.productos;
     return <div>
       <Toast msg={toast.msg} visible={toast.visible}/>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-        <button onClick={()=>setVista("inicio")} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
-        <div style={{flex:1}}>
+        <button onClick={()=>{setVista("inicio");setListaActivaId(null);}} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+        <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:18,fontWeight:700,color:"#0a1c35"}}>{listaActiva.nombre}</div>
-          <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {listaActiva.tienda}</div>
+          <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {listaActiva.tienda} · {listaActiva.categoria}</div>
+        </div>
+        <button onClick={()=>setModalProducto(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Producto</button>
+      </div>
+      <div style={{background:"#eef2ff",border:"1.5px solid #c7d2fe",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:14,color:"#10284A",lineHeight:1.5}}>
+        📝 Arma tu lista con todo lo que necesitas. <strong>Los precios los pondrás al ir comprando</strong>, palomeando cada cosa.
+      </div>
+      {prods.length>0?<div style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>TU LISTA ({prods.length})</div>
+        {prods.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid #DDE4EE",borderRadius:12,padding:"14px",marginBottom:8}}>
+          <div style={{width:34,height:34,borderRadius:9,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="cart" size={18} color="#10284A"/></div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:16,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
+            <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
+          </div>
+          <button onClick={()=>quitarProducto(pr.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#cbd5e1",fontSize:24,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+        </div>)}
+      </div>:<div style={{textAlign:"center",padding:"32px 0",color:"#8FA0B4"}}>
+        <div style={{fontSize:36,marginBottom:10}}>📝</div>
+        <div style={{fontSize:16}}>Agrega lo que necesitas comprar</div>
+      </div>}
+      {prods.length>0&&<div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+        <button onClick={comenzarCompra} style={{width:"100%",background:"#10b981",color:"#fff",border:"none",borderRadius:16,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>🛒 Comenzar compra</button>
+        <button onClick={()=>{setVista("inicio");setListaActivaId(null);mostrarToast("Lista guardada para después");}} style={{width:"100%",background:"#fff",color:"#10284A",border:"1.5px solid #DDE4EE",borderRadius:16,padding:"16px",fontSize:16,fontWeight:700,cursor:"pointer"}}>Terminar lista (guardar para después)</button>
+      </div>}
+      <Modal open={modalProducto} onClose={()=>setModalProducto(false)} titulo="Agregar a la lista">
+        <Campo etiqueta="¿Qué necesitas comprar?" value={prodForm.nombre} onChange={e=>setProdForm(p=>({...p,nombre:e.target.value}))} placeholder="Leche, camisa, foco, clavos..."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <Campo etiqueta="¿Cuánto?" type="number" value={prodForm.cantidad} onChange={e=>setProdForm(p=>({...p,cantidad:e.target.value}))} min="0.1" step="0.5"/>
+          <Selector etiqueta="Unidad" value={prodForm.unidad} onChange={e=>setProdForm(p=>({...p,unidad:e.target.value}))} opciones={[{v:"pieza",l:"Pieza"},{v:"kg",l:"Kilogramo"},{v:"litro",l:"Litro"},{v:"gramos",l:"Gramos"},{v:"paquete",l:"Paquete"},{v:"caja",l:"Caja"},{v:"metro",l:"Metro"}]}/>
+        </div>
+        <BotonGrande onClick={agregarProducto} disabled={!prodForm.nombre} color="#10b981" icono="➕">Agregar a la lista</BotonGrande>
+        <button onClick={()=>setModalProducto(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+      </Modal>
+    </div>;
+  }
+
+  if(vista==="comprando"&&listaActiva){
+    const prods=listaActiva.productos;
+    const total=totalComprado(prods);
+    const pendientes=prods.filter(p=>!p.listo);
+    const listos=prods.filter(p=>p.listo);
+    const pasado=listaActiva.limite>0&&total>listaActiva.limite;
+    const PROMOS=[["","Normal"],["2x1","2x1"],["3x2","3x2"]];
+    return <div>
+      <Toast msg={toast.msg} visible={toast.visible}/>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+        <button onClick={()=>{setVista("inicio");setListaActivaId(null);}} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:18,fontWeight:700,color:"#0a1c35"}}>{listaActiva.nombre}</div>
+          <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {listaActiva.tienda} · {listaActiva.categoria}</div>
         </div>
         <button onClick={()=>setModalProducto(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Producto</button>
       </div>
       <div style={{background:pasado?"#fef2f2":"#f0fdf4",border:`1.5px solid ${pasado?"#fca5a5":"#86efac"}`,borderRadius:14,padding:"16px",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
           <div>
-            <div style={{fontSize:13,fontWeight:700,color:pasado?"#dc2626":"#16a34a",textTransform:"uppercase",letterSpacing:".04em"}}>{pasado?"⚠️ Te pasaste del límite":"🛒 Total de la lista"}</div>
+            <div style={{fontSize:13,fontWeight:700,color:pasado?"#dc2626":"#16a34a",textTransform:"uppercase",letterSpacing:".04em"}}>{pasado?"⚠️ Te pasaste del límite":"🛒 Llevas gastado"}</div>
             <div style={{fontSize:32,fontWeight:800,color:pasado?"#dc2626":"#0a1c35",marginTop:4}}>{pesos(total)}</div>
           </div>
           {listaActiva.limite>0&&<div style={{textAlign:"right"}}>
@@ -903,11 +961,11 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
           <span style={{fontSize:13,color:pasado?"#dc2626":"#16a34a",fontWeight:600}}>{pasado?`${pesos(total-listaActiva.limite)} de más`:`Te quedan ${pesos(listaActiva.limite-total)}`}</span>
         </div></>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}>
-          <div style={{background:"rgba(255,255,255,.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
-            <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{pesos(enCarrito)}</div>
-            <div style={{fontSize:12,color:"#53647D"}}>Ya en el carrito</div>
+          <div style={{background:"rgba(255,255,255,.7)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{listos.length}</div>
+            <div style={{fontSize:12,color:"#53647D"}}>En el carrito</div>
           </div>
-          <div style={{background:"rgba(255,255,255,.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+          <div style={{background:"rgba(255,255,255,.7)",borderRadius:10,padding:"8px",textAlign:"center"}}>
             <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{pendientes.length}</div>
             <div style={{fontSize:12,color:"#53647D"}}>Por comprar</div>
           </div>
@@ -915,46 +973,55 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
       </div>
       {pendientes.length>0&&<div style={{marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>POR COMPRAR ({pendientes.length})</div>
-        {pendientes.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:12,padding:"14px",marginBottom:8}}>
-          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"2px solid #10284A",background:"#fff",cursor:"pointer",flexShrink:0}}/>
+        {pendientes.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid #DDE4EE",borderRadius:12,padding:"14px",marginBottom:8}}>
+          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"2px solid #10b981",background:"#fff",cursor:"pointer",flexShrink:0}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:16,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
             <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
           </div>
-          <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",flexShrink:0}}>{pesos(pr.precio*pr.cantidad)}</div>
-          <button onClick={()=>quitarProducto(pr.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#d1d5db",fontSize:22,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+          <button onClick={()=>quitarProducto(pr.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#cbd5e1",fontSize:22,lineHeight:1,padding:0,flexShrink:0}}>×</button>
         </div>)}
       </div>}
       {listos.length>0&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>EN EL CARRITO ({listos.length})</div>
-        {listos.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"14px",marginBottom:8,opacity:.85}}>
-          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"none",background:"#22c55e",cursor:"pointer",flexShrink:0,fontSize:16,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:16,fontWeight:500,color:"#53647D",textDecoration:"line-through"}}>{pr.nombre}</div>
-            <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>EN EL CARRITO ({listos.length}) — pon el precio</div>
+        {listos.map(pr=><div key={pr.id} style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>marcarProducto(pr.id)} style={{width:28,height:28,borderRadius:8,border:"none",background:"#22c55e",cursor:"pointer",flexShrink:0,fontSize:15,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
+              <div style={{fontSize:12,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
+            </div>
+            <div style={{fontSize:16,fontWeight:800,color:"#16a34a",flexShrink:0}}>{pesos(precioItem(pr))}</div>
           </div>
-          <div style={{fontSize:15,fontWeight:600,color:"#16a34a",flexShrink:0}}>{pesos(pr.precio*pr.cantidad)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
+            <div style={{position:"relative",flexShrink:0,width:120}}>
+              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#8FA0B4",fontSize:15}}>$</span>
+              <input type="number" inputMode="decimal" value={pr.precio||""} onChange={e=>setPrecio(pr.id,e.target.value)} placeholder="0" min="0" step="1"
+                style={{width:"100%",padding:"9px 10px 9px 22px",border:"1.5px solid #DDE4EE",borderRadius:9,fontSize:15,background:"#fff",boxSizing:"border-box"}}/>
+            </div>
+            <span style={{fontSize:12,color:"#8FA0B4"}}>c/u</span>
+            <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
+              {PROMOS.map(([v,l])=><button key={l} onClick={()=>setPromo(pr.id,v)}
+                style={{padding:"7px 9px",borderRadius:8,border:"1.5px solid",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",borderColor:(pr.promo||"")===v?"#f59e0b":"#DDE4EE",background:(pr.promo||"")===v?"#fffbeb":"#fff",color:(pr.promo||"")===v?"#d97706":"#8FA0B4"}}>{l}</button>)}
+            </div>
+          </div>
         </div>)}
       </div>}
-      {listaActiva.productos.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#8FA0B4"}}>
-        <div style={{fontSize:36,marginBottom:10}}>📝</div>
-        <div style={{fontSize:16}}>Agrega el primer producto a tu lista</div>
+      {prods.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#8FA0B4"}}>
+        <div style={{fontSize:36,marginBottom:10}}>🛒</div>
+        <div style={{fontSize:16}}>Agrega productos para empezar a comprar</div>
       </div>}
-      {listaActiva.productos.length>0&&<button onClick={()=>setModalCerrar(true)}
+      {listos.length>0&&<button onClick={()=>setModalCerrar(true)}
         style={{width:"100%",background:"#0a1c35",color:"#fff",border:"none",borderRadius:16,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-        🏁 Cerrar compra — {pesos(total)}
+        🏁 Terminar compra — {pesos(total)}
       </button>}
       <Modal open={modalProducto} onClose={()=>setModalProducto(false)} titulo="Agregar producto">
-        <Campo etiqueta="¿Qué producto es?" value={prodForm.nombre} onChange={e=>setProdForm(p=>({...p,nombre:e.target.value}))} placeholder="Leche, aguacates, jabón..."/>
+        <Campo etiqueta="¿Qué producto es?" value={prodForm.nombre} onChange={e=>setProdForm(p=>({...p,nombre:e.target.value}))} placeholder="Leche, jabón..."/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <Campo etiqueta="¿Cuánto?" type="number" value={prodForm.cantidad} onChange={e=>setProdForm(p=>({...p,cantidad:e.target.value}))} min="0.1" step="0.5"/>
-          <Selector etiqueta="Unidad" value={prodForm.unidad} onChange={e=>setProdForm(p=>({...p,unidad:e.target.value}))} opciones={[{v:"pieza",l:"Pieza"},{v:"kg",l:"Kilogramo"},{v:"litro",l:"Litro"},{v:"gramos",l:"Gramos"},{v:"paquete",l:"Paquete"},{v:"caja",l:"Caja"}]}/>
+          <Selector etiqueta="Unidad" value={prodForm.unidad} onChange={e=>setProdForm(p=>({...p,unidad:e.target.value}))} opciones={[{v:"pieza",l:"Pieza"},{v:"kg",l:"Kilogramo"},{v:"litro",l:"Litro"},{v:"gramos",l:"Gramos"},{v:"paquete",l:"Paquete"},{v:"caja",l:"Caja"},{v:"metro",l:"Metro"}]}/>
         </div>
-        <Campo etiqueta="¿Cuánto cuesta?" ayuda="El precio aproximado — para saber cuánto llevar" type="number" value={prodForm.precio} onChange={e=>setProdForm(p=>({...p,precio:e.target.value}))} placeholder="0" min="0" step="1"/>
-        {listaActiva?.limite>0&&prodForm.precio&&<div style={{background:totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"#fef2f2":"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:14,color:totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"#dc2626":"#16a34a",fontWeight:500}}>
-          {totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad)>listaActiva.limite?"⚠️":"✅"} El total quedaría en {pesos(totalLista(listaActiva.productos)+Number(prodForm.precio)*Number(prodForm.cantidad))}
-        </div>}
-        <BotonGrande onClick={agregarProducto} disabled={!prodForm.nombre} color="#10b981" icono="➕">Agregar a la lista</BotonGrande>
+        <BotonGrande onClick={agregarProducto} disabled={!prodForm.nombre} color="#10b981" icono="➕">Agregar</BotonGrande>
         <button onClick={()=>setModalProducto(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
       </Modal>
       <Modal open={modalCerrar} onClose={()=>setModalCerrar(false)} titulo="Resumen de tu compra">
@@ -964,16 +1031,17 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
           <div style={{fontSize:36,fontWeight:800,color:"#0a1c35",marginBottom:4}}>{pesos(total)}</div>
           {listaActiva.limite>0&&<div style={{fontSize:15,color:pasado?"#dc2626":"#16a34a",fontWeight:600}}>{pasado?`⚠️ Te pasaste por ${pesos(total-listaActiva.limite)}`:`✅ Dentro de tu límite de ${pesos(listaActiva.limite)}`}</div>}
         </div>
-        <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16,maxHeight:200,overflowY:"auto"}}>
-          {listaActiva.productos.map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f1f5f9",fontSize:14}}>
-            <span style={{color:pr.listo?"#0a1c35":"#8FA0B4"}}>{pr.listo?"✓":"○"} {pr.nombre} ×{pr.cantidad}</span>
-            <span style={{fontWeight:600,color:pr.listo?"#0a1c35":"#8FA0B4"}}>{pesos(pr.precio*pr.cantidad)}</span>
+        <div style={{background:"#f8fafc",borderRadius:12,padding:"14px",marginBottom:16,maxHeight:220,overflowY:"auto"}}>
+          {listos.map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f1f5f9",fontSize:14}}>
+            <span style={{color:"#0a1c35"}}>{pr.nombre} ×{pr.cantidad}{pr.promo?` (${pr.promo})`:""}</span>
+            <span style={{fontWeight:600,color:"#0a1c35"}}>{pesos(precioItem(pr))}</span>
           </div>)}
+          {pendientes.length>0&&<div style={{fontSize:12,color:"#8FA0B4",marginTop:8}}>{pendientes.length} producto(s) sin comprar no se cuentan.</div>}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,marginTop:4,fontWeight:800,fontSize:16,color:"#0a1c35"}}>
             <span>Total</span><span>{pesos(total)}</span>
           </div>
         </div>
-        <BotonGrande onClick={cerrarLista} color="#10b981" icono="✅">Confirmar y guardar compra</BotonGrande>
+        <BotonGrande onClick={cerrarLista} color="#10b981" icono="✅">Guardar en mi historial</BotonGrande>
         <button onClick={()=>setModalCerrar(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Seguir comprando</button>
       </Modal>
     </div>;
@@ -986,42 +1054,42 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
       <h2 style={{margin:0,fontSize:20,fontWeight:700,color:"#0a1c35"}}>{historialId&&listaHistorial?"Detalle de compra":"Compras anteriores"}</h2>
     </div>
     {historialId&&listaHistorial?<div>
-      <div style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"16px",marginBottom:14}}>
+      <div style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"16px",marginBottom:14}}>
         <div style={{fontSize:18,fontWeight:700,color:"#0a1c35",marginBottom:4}}>{listaHistorial.nombre}</div>
-        <div style={{fontSize:14,color:"#8FA0B4",marginBottom:14}}>🏪 {listaHistorial.tienda} · {fechaCorta(listaHistorial.fecha)}</div>
+        <div style={{fontSize:14,color:"#8FA0B4",marginBottom:14}}>🏪 {listaHistorial.tienda} · {listaHistorial.categoria||"Otro"} · {fechaCorta(listaHistorial.fecha)}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div style={{background:"#f8fafc",borderRadius:10,padding:"12px",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:800,color:"#0a1c35"}}>{pesos(totalLista(listaHistorial.productos))}</div>
+            <div style={{fontSize:22,fontWeight:800,color:"#0a1c35"}}>{pesos(totalComprado(listaHistorial.productos))}</div>
             <div style={{fontSize:13,color:"#8FA0B4",marginTop:3}}>Total gastado</div>
           </div>
           <div style={{background:"#f8fafc",borderRadius:10,padding:"12px",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:800,color:totalLista(listaHistorial.productos)>listaHistorial.limite?"#ef4444":"#10b981"}}>{listaHistorial.limite>0?pesos(listaHistorial.limite):"—"}</div>
+            <div style={{fontSize:22,fontWeight:800,color:listaHistorial.limite>0&&totalComprado(listaHistorial.productos)>listaHistorial.limite?"#ef4444":"#10b981"}}>{listaHistorial.limite>0?pesos(listaHistorial.limite):"—"}</div>
             <div style={{fontSize:13,color:"#8FA0B4",marginTop:3}}>Presupuesto</div>
           </div>
         </div>
       </div>
-      {listaHistorial.productos.map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:12,padding:"12px 16px",marginBottom:8}}>
+      {listaHistorial.productos.filter(p=>p.listo).map(pr=><div key={pr.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff",border:"1px solid #DDE4EE",borderRadius:12,padding:"12px 16px",marginBottom:8}}>
         <div>
-          <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
+          <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}{pr.promo?<span style={{marginLeft:6,background:"#fffbeb",color:"#d97706",fontSize:11,fontWeight:700,padding:"1px 6px",borderRadius:6}}>{pr.promo}</span>:null}</div>
           <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad} × {pesos(pr.precio)}</div>
         </div>
-        <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{pesos(pr.precio*pr.cantidad)}</div>
+        <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>{pesos(precioItem(pr))}</div>
       </div>)}
       <div style={{background:"#0a1c35",borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
         <span style={{fontSize:16,fontWeight:600,color:"#fff"}}>Total</span>
-        <span style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pesos(totalLista(listaHistorial.productos))}</span>
+        <span style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pesos(totalComprado(listaHistorial.productos))}</span>
       </div>
     </div>:<div>
       {listasCerradas.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#8FA0B4"}}>
         <div style={{fontSize:40,marginBottom:10}}>🧾</div><div style={{fontSize:16}}>Sin compras anteriores todavía</div>
       </div>}
       {listasCerradas.slice().reverse().map(l=>{
-        const total=totalLista(l.productos);const pasado=l.limite>0&&total>l.limite;
-        return <div key={l.id} onClick={()=>setHistorialId(l.id)} style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
-          <div style={{width:50,height:50,borderRadius:12,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🧾</div>
+        const total=totalComprado(l.productos);const pasado=l.limite>0&&total>l.limite;
+        return <div key={l.id} onClick={()=>setHistorialId(l.id)} style={{display:"flex",alignItems:"center",gap:14,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+          <div style={{width:50,height:50,borderRadius:12,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="cart" size={24} color="#10284A"/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{l.nombre}</div>
-            <div style={{fontSize:13,color:"#8FA0B4"}}>{l.tienda} · {fechaCorta(l.fecha)} · {l.productos.length} productos</div>
+            <div style={{fontSize:13,color:"#8FA0B4"}}>{l.tienda} · {l.categoria||"Otro"} · {fechaCorta(l.fecha)}</div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:17,fontWeight:700,color:pasado?"#ef4444":"#0a1c35"}}>{pesos(total)}</div>
@@ -1031,6 +1099,40 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
       })}
     </div>}
   </div>;
+
+  if(vista==="reporte"){
+    const porCat={};let totalGen=0;
+    listasCerradas.forEach(l=>{const t=totalComprado(l.productos);const c=l.categoria||"Otro";porCat[c]=(porCat[c]||0)+t;totalGen+=t;});
+    const filas=Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+    const maxV=filas.length?filas[0][1]:0;
+    const COLOR={Despensa:"#10b981","Súper":"#22c55e",Ropa:"#8b5cf6",Hogar:"#06b6d4",Reparaciones:"#f59e0b",Entretenimiento:"#ec4899",Farmacia:"#ef4444",Mascotas:"#14b8a6",Regalos:"#6366f1",Otro:"#64748b"};
+    return <div>
+      <Toast msg={toast.msg} visible={toast.visible}/>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button onClick={()=>setVista("inicio")} style={{border:"none",background:"#f1f5f9",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+        <h2 style={{margin:0,fontSize:20,fontWeight:700,color:"#0a1c35"}}>Reporte de gastos</h2>
+      </div>
+      <div style={{background:"linear-gradient(135deg,#10284A,#1a3a6e)",borderRadius:16,padding:"20px",marginBottom:16,color:"#fff"}}>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginBottom:4}}>TOTAL GASTADO EN COMPRAS</div>
+        <div style={{fontSize:32,fontWeight:800}}>{pesos(totalGen)}</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.7)",marginTop:4}}>{listasCerradas.length} compra{listasCerradas.length!==1?"s":""} registrada{listasCerradas.length!==1?"s":""}</div>
+      </div>
+      {filas.length===0?<div style={{textAlign:"center",padding:"40px 0",color:"#8FA0B4"}}>
+        <div style={{fontSize:40,marginBottom:10}}>📊</div><div style={{fontSize:16}}>Aún no hay compras para reportar</div>
+      </div>:<div style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"16px"}}>
+        <div style={{fontSize:15,fontWeight:700,color:"#0a1c35",marginBottom:14}}>Por categoría</div>
+        {filas.map(([cat,val])=>{const col=COLOR[cat]||"#64748b";const pct=totalGen>0?Math.round(val/totalGen*100):0;
+          return <div key={cat} style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+              <span style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{cat}</span>
+              <span style={{fontSize:14,fontWeight:700,color:"#0a1c35"}}>{pesos(val)} <span style={{color:"#8FA0B4",fontWeight:500}}>· {pct}%</span></span>
+            </div>
+            <Barra valor={val} max={maxV} color={col} alto={10}/>
+          </div>;
+        })}
+      </div>}
+    </div>;
+  }
   return null;
 }
 
