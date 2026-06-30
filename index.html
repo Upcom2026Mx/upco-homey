@@ -112,6 +112,19 @@ const urgencia=dias=>{
 };
 const ICONOS_TIPO={tarjeta:"💳",seguro:"🛡️",seguro_auto:"🚗",vehiculo:"🚗",inversion:"📈",servicio:"💡",renta:"🏠",otro:"📌"};
 
+// Precio de un producto considerando promociones (NxM: paga M por cada N)
+const precioConPromo=p=>{
+  const n=Number(p.cantidad)||0,pr=Number(p.precio)||0;
+  if(p.promo==="2x1")return (n-Math.floor(n/2))*pr;
+  if(p.promo==="3x2")return (n-Math.floor(n/3))*pr;
+  if(p.promo==="4x3")return (n-Math.floor(n/4))*pr;
+  return n*pr;
+};
+// Total comprado de una lista (solo lo que se marcó como comprado)
+const totalListaComprado=prods=>(prods||[]).filter(x=>x.listo).reduce((s,x)=>s+precioConPromo(x),0);
+// Tiendas estándar (para detectar si una tienda es personalizada)
+const TIENDAS_STD=["Walmart","Soriana","Chedraui","Costco","Sam's Club","Bodega Aurrerá","La Comer","Mega Comercial","HEB","Mercado local","Central de Abastos","OXXO","Liverpool","Coppel","Suburbia","Home Depot","Farmacia","Amazon","Mercado Libre","Otra tienda"];
+
 // Tabla simplificada Hoy No Circula CDMX (referencia general — verifica siempre el calendario oficial vigente)
 const HOY_NO_CIRCULA=[
   {dia:"Lunes",terminaciones:["5","6"]},
@@ -292,7 +305,7 @@ function Monograma({size=38,radio=11}){
 }
 
 // ── MÓDULO: INICIO ────────────────────────────────────────────
-function Inicio({recordatorios,presupuesto,metas,irA}){
+function Inicio({recordatorios,presupuesto,metas,listas,irA}){
   const[verResumen,setVerResumen]=useState(false);
   const urgentes=recordatorios.filter(r=>diasPara(r.fecha)<=0);
   const proximosSemana=recordatorios.filter(r=>{const d=diasPara(r.fecha);return d>0&&d<=7;});
@@ -309,7 +322,7 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
     <button onClick={()=>setVerResumen(false)} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#10284A",fontWeight:500,marginBottom:20,padding:0}}>
       ← Regresar al inicio
     </button>
-    <ResumenFinanciero presupuesto={presupuesto} metas={metas} recordatorios={recordatorios} irA={irA}/>
+    <ResumenFinanciero presupuesto={presupuesto} metas={metas} recordatorios={recordatorios} listas={listas} irA={irA}/>
   </div>;
 
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
@@ -389,11 +402,18 @@ function Inicio({recordatorios,presupuesto,metas,irA}){
 }
 
 // ── RESUMEN FINANCIERO ────────────────────────────────────────
-function ResumenFinanciero({presupuesto,metas,recordatorios,irA}){
+function ResumenFinanciero({presupuesto,metas,recordatorios,listas,irA}){
   const gastado=presupuesto.categorias.reduce((s,c)=>s+c.gastado,0);
   const limite=presupuesto.categorias.reduce((s,c)=>s+c.limite,0);
   const libre=presupuesto.ingreso-gastado;
   const proximos30=recordatorios.filter(r=>diasPara(r.fecha)<=30).sort((a,b)=>diasPara(a.fecha)-diasPara(b.fecha));
+  // Compras cerradas agrupadas por segmento (categoría)
+  const comprasCerradas=(listas||[]).filter(l=>l.estado==="cerrada");
+  const porSegmento={};let totalCompras=0;
+  comprasCerradas.forEach(l=>{const t=totalListaComprado(l.productos);const c=l.categoria||"Otro";porSegmento[c]=(porSegmento[c]||0)+t;totalCompras+=t;});
+  const segmentos=Object.entries(porSegmento).sort((a,b)=>b[1]-a[1]);
+  const maxSeg=segmentos.length?segmentos[0][1]:0;
+  const COLOR_SEG={Despensa:"#10b981","Súper":"#22c55e",Ropa:"#8b5cf6",Hogar:"#06b6d4",Reparaciones:"#f59e0b",Entretenimiento:"#ec4899",Farmacia:"#ef4444",Mascotas:"#14b8a6",Regalos:"#6366f1",Otro:"#64748b"};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
       {[
@@ -448,6 +468,22 @@ function ResumenFinanciero({presupuesto,metas,recordatorios,irA}){
             <span style={{fontSize:13,color:"#8FA0B4"}}>Ahorrado: {pesos(g.ahorrado)}</span>
             <span style={{fontSize:13,color:"#8FA0B4"}}>Meta: {pesos(g.meta)}</span>
           </div>
+        </div>;
+      })}
+    </div>
+    <div style={{background:"#fff",border:"1.5px solid #DDE4EE",borderRadius:14,padding:"16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{fontSize:16,fontWeight:700,color:"#0a1c35"}}>Gastos en compras por segmento</div>
+        {totalCompras>0&&<div style={{fontSize:15,fontWeight:800,color:"#0a1c35"}}>{pesos(totalCompras)}</div>}
+      </div>
+      {segmentos.length===0?<div style={{fontSize:14,color:"#8FA0B4",textAlign:"center",padding:"12px 0"}}>Aún no hay compras registradas 🛒</div>
+      :segmentos.map(([seg,val])=>{const col=COLOR_SEG[seg]||"#64748b";const pct=totalCompras>0?Math.round(val/totalCompras*100):0;
+        return <div key={seg} style={{marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+            <span style={{fontSize:15,color:"#374151"}}>{seg}</span>
+            <span style={{fontSize:14,color:"#53647D",fontWeight:600}}>{pesos(val)} · {pct}%</span>
+          </div>
+          <Barra valor={val} max={maxSeg} color={col} alto={8}/>
         </div>;
       })}
     </div>
@@ -787,7 +823,9 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
   const[modalCerrar,setModalCerrar]=useState(false);
   const[historialId,setHistorialId]=useState(null);
   const[toast,setToast]=useState({visible:false,msg:""});
-  const[listaForm,setListaForm]=useState({nombre:"",categoria:"Despensa",tienda:"Walmart",limite:""});
+  const[modalEditar,setModalEditar]=useState(false);
+  const[listaForm,setListaForm]=useState({nombre:"",categoria:"Despensa",tienda:"Walmart",tiendaOtra:"",limite:""});
+  const[editForm,setEditForm]=useState({nombre:"",categoria:"Despensa",tienda:"Walmart",tiendaOtra:"",limite:""});
   const[prodForm,setProdForm]=useState({nombre:"",cantidad:"1",unidad:"pieza"});
   const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
   useEffect(()=>{if(accion==="nueva_lista"){setVista("inicio");setModalNueva(true);onConsumirAccion();}},[accion]);
@@ -797,14 +835,17 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
   const activas=listas.filter(l=>l.estado==="lista"||l.estado==="comprando");
   const listasCerradas=listas.filter(l=>l.estado==="cerrada");
   const listaHistorial=listas.find(l=>l.id===historialId);
-  const precioItem=p=>{const n=Number(p.cantidad)||0,pr=Number(p.precio)||0;if(p.promo==="2x1")return Math.ceil(n/2)*pr;if(p.promo==="3x2")return (n-Math.floor(n/3))*pr;return n*pr;};
-  const totalComprado=prods=>prods.filter(p=>p.listo).reduce((s,p)=>s+precioItem(p),0);
+  const precioItem=precioConPromo;
+  const totalComprado=totalListaComprado;
   const actualizar=(id,fn)=>setListas(p=>p.map(l=>l.id===id?fn(l):l));
+  const resolverTienda=f=>f.tienda==="Otra tienda"?(f.tiendaOtra.trim()||"Otra tienda"):f.tienda;
   const crearLista=()=>{
     if(!listaForm.nombre)return;
-    const nueva={id:Date.now(),nombre:listaForm.nombre,categoria:listaForm.categoria,tienda:listaForm.tienda,limite:Number(listaForm.limite)||0,fecha:new Date().toISOString().split("T")[0],estado:"lista",productos:[]};
-    setListas(p=>[...p,nueva]);setListaActivaId(nueva.id);setListaForm({nombre:"",categoria:"Despensa",tienda:"Walmart",limite:""});setModalNueva(false);setVista("armar");
+    const nueva={id:Date.now(),nombre:listaForm.nombre,categoria:listaForm.categoria,tienda:resolverTienda(listaForm),limite:Number(listaForm.limite)||0,fecha:new Date().toISOString().split("T")[0],estado:"lista",productos:[]};
+    setListas(p=>[...p,nueva]);setListaActivaId(nueva.id);setListaForm({nombre:"",categoria:"Despensa",tienda:"Walmart",tiendaOtra:"",limite:""});setModalNueva(false);setVista("armar");
   };
+  const abrirEditar=l=>{const std=TIENDAS_STD.includes(l.tienda);setEditForm({nombre:l.nombre,categoria:l.categoria||"Otro",tienda:std?l.tienda:"Otra tienda",tiendaOtra:std?"":l.tienda,limite:l.limite||""});setModalEditar(true);};
+  const guardarEdicion=()=>{if(!editForm.nombre)return;actualizar(listaActivaId,l=>({...l,nombre:editForm.nombre,categoria:editForm.categoria,tienda:resolverTienda(editForm),limite:Number(editForm.limite)||0}));setModalEditar(false);mostrarToast("Lista actualizada");};
   const agregarProducto=()=>{
     if(!prodForm.nombre||!listaActivaId)return;
     actualizar(listaActivaId,l=>({...l,productos:[...l.productos,{id:Date.now(),nombre:prodForm.nombre,cantidad:Number(prodForm.cantidad)||1,unidad:prodForm.unidad,precio:0,promo:"",listo:false}]}));
@@ -876,9 +917,19 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
       <Campo etiqueta="¿Cómo se llama esta lista?" ayuda="Ej: Super semanal, Ropa de temporada, Reparación del baño" value={listaForm.nombre} onChange={e=>setListaForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la lista..."/>
       <Selector etiqueta="¿De qué es esta compra?" ayuda="Sirve para tu reporte de gastos" value={listaForm.categoria} onChange={e=>setListaForm(p=>({...p,categoria:e.target.value}))} opciones={CATEGORIAS.map(c=>({v:c,l:c}))}/>
       <Selector etiqueta="¿En qué tienda vas a comprar?" value={listaForm.tienda} onChange={e=>setListaForm(p=>({...p,tienda:e.target.value}))} opciones={TIENDAS.map(t=>({v:t,l:t}))}/>
+      {listaForm.tienda==="Otra tienda"&&<Campo etiqueta="Escribe el nombre de la tienda" value={listaForm.tiendaOtra} onChange={e=>setListaForm(p=>({...p,tiendaOtra:e.target.value}))} placeholder="Ej: Tiendas Ley, Neto, 3B..."/>}
       <Campo etiqueta="¿Cuánto puedes gastar? (opcional)" ayuda="Te avisamos si te estás pasando" type="number" value={listaForm.limite} onChange={e=>setListaForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 1500" min="0" step="50"/>
       <BotonGrande onClick={crearLista} disabled={!listaForm.nombre} color="#10b981" icono="📝">Crear y armar mi lista</BotonGrande>
       <button onClick={()=>setModalNueva(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
+    </Modal>
+    <Modal open={modalEditar} onClose={()=>setModalEditar(false)} titulo="Editar lista">
+      <Campo etiqueta="Nombre de la lista" value={editForm.nombre} onChange={e=>setEditForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre de la lista..."/>
+      <Selector etiqueta="¿De qué es esta compra?" value={editForm.categoria} onChange={e=>setEditForm(p=>({...p,categoria:e.target.value}))} opciones={CATEGORIAS.map(c=>({v:c,l:c}))}/>
+      <Selector etiqueta="Tienda" value={editForm.tienda} onChange={e=>setEditForm(p=>({...p,tienda:e.target.value}))} opciones={TIENDAS.map(t=>({v:t,l:t}))}/>
+      {editForm.tienda==="Otra tienda"&&<Campo etiqueta="Escribe el nombre de la tienda" value={editForm.tiendaOtra} onChange={e=>setEditForm(p=>({...p,tiendaOtra:e.target.value}))} placeholder="Ej: Tiendas Ley, Neto, 3B..."/>}
+      <Campo etiqueta="Límite de gasto (opcional)" type="number" value={editForm.limite} onChange={e=>setEditForm(p=>({...p,limite:e.target.value}))} placeholder="Ej: 1500" min="0" step="50"/>
+      <BotonGrande onClick={guardarEdicion} disabled={!editForm.nombre} color="#10284A" icono="✅">Guardar cambios</BotonGrande>
+      <button onClick={()=>setModalEditar(false)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:15,padding:"14px",cursor:"pointer",marginTop:4}}>Cancelar</button>
     </Modal>
   </div>;
 
@@ -892,6 +943,7 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
           <div style={{fontSize:18,fontWeight:700,color:"#0a1c35"}}>{listaActiva.nombre}</div>
           <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {listaActiva.tienda} · {listaActiva.categoria}</div>
         </div>
+        <button onClick={()=>abrirEditar(listaActiva)} title="Editar lista" style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:17,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✏️</button>
         <button onClick={()=>setModalProducto(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Producto</button>
       </div>
       <div style={{background:"#eef2ff",border:"1.5px solid #c7d2fe",borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:14,color:"#10284A",lineHeight:1.5}}>
@@ -933,7 +985,7 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
     const pendientes=prods.filter(p=>!p.listo);
     const listos=prods.filter(p=>p.listo);
     const pasado=listaActiva.limite>0&&total>listaActiva.limite;
-    const PROMOS=[["","Normal"],["2x1","2x1"],["3x2","3x2"]];
+    const PROMOS=[["","Normal"],["2x1","2x1"],["3x2","3x2"],["4x3","4x3"]];
     return <div>
       <Toast msg={toast.msg} visible={toast.visible}/>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
@@ -942,6 +994,7 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
           <div style={{fontSize:18,fontWeight:700,color:"#0a1c35"}}>{listaActiva.nombre}</div>
           <div style={{fontSize:14,color:"#8FA0B4"}}>🏪 {listaActiva.tienda} · {listaActiva.categoria}</div>
         </div>
+        <button onClick={()=>abrirEditar(listaActiva)} title="Editar lista" style={{background:"#f1f5f9",color:"#53647D",border:"none",borderRadius:10,width:42,height:42,cursor:"pointer",fontSize:17,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✏️</button>
         <button onClick={()=>setModalProducto(true)} style={{background:"#10b981",color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Producto</button>
       </div>
       <div style={{background:pasado?"#fef2f2":"#f0fdf4",border:`1.5px solid ${pasado?"#fca5a5":"#86efac"}`,borderRadius:14,padding:"16px",marginBottom:16}}>
@@ -972,39 +1025,40 @@ function Compras({listas,setListas,accion,onConsumirAccion}){
         </div>
       </div>
       {pendientes.length>0&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>POR COMPRAR ({pendientes.length})</div>
-        {pendientes.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid #DDE4EE",borderRadius:12,padding:"14px",marginBottom:8}}>
-          <button onClick={()=>marcarProducto(pr.id)} style={{width:30,height:30,borderRadius:8,border:"2px solid #10b981",background:"#fff",cursor:"pointer",flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:16,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
-            <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>POR COMPRAR ({pendientes.length}) — pon el precio y dale "Dentro"</div>
+        {pendientes.map(pr=><div key={pr.id} style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
+              <div style={{fontSize:13,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
+            </div>
+            <button onClick={()=>quitarProducto(pr.id)} title="Quitar de la lista" style={{border:"none",background:"none",cursor:"pointer",color:"#cbd5e1",fontSize:22,lineHeight:1,padding:0,flexShrink:0}}>×</button>
           </div>
-          <button onClick={()=>quitarProducto(pr.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#cbd5e1",fontSize:22,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
+            <div style={{position:"relative",flexShrink:0,width:110}}>
+              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#8FA0B4",fontSize:15}}>$</span>
+              <input type="number" inputMode="decimal" value={pr.precio||""} onChange={e=>setPrecio(pr.id,e.target.value)} placeholder="0" min="0" step="1"
+                style={{width:"100%",padding:"9px 10px 9px 22px",border:"1.5px solid #DDE4EE",borderRadius:9,fontSize:15,background:"#fafafa",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:5}}>
+              {PROMOS.map(([v,l])=><button key={l} onClick={()=>setPromo(pr.id,v)}
+                style={{padding:"7px 8px",borderRadius:8,border:"1.5px solid",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",borderColor:(pr.promo||"")===v?"#f59e0b":"#DDE4EE",background:(pr.promo||"")===v?"#fffbeb":"#fff",color:(pr.promo||"")===v?"#d97706":"#8FA0B4"}}>{l}</button>)}
+            </div>
+            <button onClick={()=>marcarProducto(pr.id)} style={{marginLeft:"auto",background:"#10b981",color:"#fff",border:"none",borderRadius:9,padding:"9px 14px",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>✓ Dentro</button>
+          </div>
         </div>)}
       </div>}
       {listos.length>0&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>EN EL CARRITO ({listos.length}) — pon el precio</div>
-        {listos.map(pr=><div key={pr.id} style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button onClick={()=>marcarProducto(pr.id)} style={{width:28,height:28,borderRadius:8,border:"none",background:"#22c55e",cursor:"pointer",flexShrink:0,fontSize:15,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}</div>
-              <div style={{fontSize:12,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad}</div>
-            </div>
-            <div style={{fontSize:16,fontWeight:800,color:"#16a34a",flexShrink:0}}>{pesos(precioItem(pr))}</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#8FA0B4",marginBottom:10}}>YA EN EL CARRITO ({listos.length})</div>
+        {listos.map(pr=><div key={pr.id} style={{display:"flex",alignItems:"center",gap:10,background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+          <div style={{width:26,height:26,borderRadius:7,background:"#22c55e",flexShrink:0,fontSize:14,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>✓</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#0a1c35"}}>{pr.nombre}{pr.promo?<span style={{marginLeft:6,background:"#fffbeb",color:"#d97706",fontSize:11,fontWeight:700,padding:"1px 6px",borderRadius:6}}>{pr.promo}</span>:null}</div>
+            <div style={{fontSize:12,color:"#8FA0B4"}}>{pr.cantidad} {pr.unidad} × {pesos(Number(pr.precio)||0)}</div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
-            <div style={{position:"relative",flexShrink:0,width:120}}>
-              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#8FA0B4",fontSize:15}}>$</span>
-              <input type="number" inputMode="decimal" value={pr.precio||""} onChange={e=>setPrecio(pr.id,e.target.value)} placeholder="0" min="0" step="1"
-                style={{width:"100%",padding:"9px 10px 9px 22px",border:"1.5px solid #DDE4EE",borderRadius:9,fontSize:15,background:"#fff",boxSizing:"border-box"}}/>
-            </div>
-            <span style={{fontSize:12,color:"#8FA0B4"}}>c/u</span>
-            <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
-              {PROMOS.map(([v,l])=><button key={l} onClick={()=>setPromo(pr.id,v)}
-                style={{padding:"7px 9px",borderRadius:8,border:"1.5px solid",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",borderColor:(pr.promo||"")===v?"#f59e0b":"#DDE4EE",background:(pr.promo||"")===v?"#fffbeb":"#fff",color:(pr.promo||"")===v?"#d97706":"#8FA0B4"}}>{l}</button>)}
-            </div>
-          </div>
+          <div style={{fontSize:16,fontWeight:800,color:"#16a34a",flexShrink:0}}>{pesos(precioItem(pr))}</div>
+          <button onClick={()=>marcarProducto(pr.id)} title="Editar precio" style={{border:"none",background:"#fff",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:15,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>✏️</button>
+          <button onClick={()=>quitarProducto(pr.id)} title="Quitar de la compra" style={{border:"none",background:"#fff",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:15,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>🗑️</button>
         </div>)}
       </div>}
       {prods.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#8FA0B4"}}>
@@ -2051,7 +2105,7 @@ function AppPrincipal({onCerrarSesion}){
   };
 
   const VISTAS={
-    inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} irA={irA}/>,
+    inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} listas={listas} irA={irA}/>,
     dinero:<MiDinero recordatorios={recordatorios} setRecordatorios={setRecordatorios} presupuesto={presupuesto} setPresupuesto={setPresupuesto} metas={metas} setMetas={setMetas} listas={listas} setListas={setListas} accion={accion} onConsumirAccion={consumirAccion}/>,
     hogar:<MiHogar recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={consumirAccion}/>,
     mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onCerrarSesion={onCerrarSesion} onReset={reiniciarDatos}/>,
