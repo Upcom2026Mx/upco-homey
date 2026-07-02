@@ -267,6 +267,7 @@ const PATHS={
   herramientas:<><path d="M14.7 6.3a3.7 3.7 0 0 0-4.9 4.6l-6 6a1.8 1.8 0 0 0 2.6 2.6l6-6a3.7 3.7 0 0 0 4.6-4.9l-2.3 2.3-2.1-2.1z"/></>,
   productos:<><path d="M4 7h16v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M4 12h16"/></>,
   campana:<><path d="M18 8.5a6 6 0 0 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></>,
+  engrane:<><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></>,
   tarjeta:<><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/><path d="M6 14.5h4"/></>,
   escudo:<><path d="M12 3 5 6v5.5c0 4.3 3 7.5 7 9 4-1.5 7-4.7 7-9V6z"/><path d="M9.3 12l1.8 1.8 3.6-3.8"/></>,
   tendencia:<><path d="M3 16.5 9.5 10l3.5 3.5L21 6"/><path d="M16.5 6H21v4.5"/></>,
@@ -1961,10 +1962,8 @@ function ProductosFinancieros(){
 }
 
 // ── MÓDULO: MÁS (menú a Mi auto / Herramientas / Productos) ──
-function Mas({autos,setAutos,irAMas,onCerrarSesion,onReset}){
+function Mas({autos,setAutos,irAMas,onAbrirConfig}){
   const[sub,setSub]=useState(irAMas.accion==="nuevo_auto"?"auto":"menu");
-  const[confirmarReset,setConfirmarReset]=useState(false);
-  const[toast,setToast]=useState({visible:false,msg:""});
   useEffect(()=>{if(irAMas.accion==="nuevo_auto")setSub("auto");},[irAMas.accion]);
   if(sub==="auto")return <div>
     <button onClick={()=>setSub("menu")} style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#10284A",fontWeight:500,marginBottom:16,padding:0}}>← Más</button>
@@ -1995,20 +1994,16 @@ function Mas({autos,setAutos,irAMas,onCerrarSesion,onReset}){
         </div>
         <div style={{color:"#cbd5e1",fontSize:22}}>›</div>
       </button>)}
+      {onAbrirConfig&&<button onClick={onAbrirConfig}
+        style={{background:"#fff",border:"1px solid #DDE4EE",borderRadius:16,padding:"16px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14,boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+        <div style={{width:52,height:52,borderRadius:14,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico name="engrane" size={26} color="#53647D" stroke={2}/></div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:16,fontWeight:700,color:"#0a1c35",marginBottom:2}}>Configuración</div>
+          <div style={{fontSize:13,color:"#8FA0B4",lineHeight:1.4}}>Tu perfil, contacto, PIN y datos</div>
+        </div>
+        <div style={{color:"#cbd5e1",fontSize:22}}>›</div>
+      </button>}
     </div>
-    {onReset&&<button onClick={()=>setConfirmarReset(true)}
-      style={{width:"100%",marginTop:20,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#53647D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-      🗑️ Borrar todos mis datos
-    </button>}
-    {onCerrarSesion&&<button onClick={onCerrarSesion}
-      style={{width:"100%",marginTop:12,background:"#fff",border:"1px solid #DDE4EE",borderRadius:14,padding:"15px",fontSize:15,fontWeight:600,color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-      Cerrar sesión
-    </button>}
-    <Toast msg={toast.msg} visible={toast.visible}/>
-    <ConfirmModal open={confirmarReset}
-      onConfirm={()=>{onReset();setConfirmarReset(false);setSub("menu");setToast({visible:true,msg:"Datos borrados. Empieza de cero 🎉"});setTimeout(()=>setToast({visible:false,msg:""}),2800);}}
-      onCancel={()=>setConfirmarReset(false)}
-      texto="Se borrarán TODOS tus pagos, recordatorios, presupuesto, metas, compras y autos. Esta acción no se puede deshacer."/>
   </div>;
 }
 
@@ -2049,8 +2044,50 @@ function MenuAgregar({open,onClose,onElegir}){
   </div>;
 }
 
+// ── CONFIGURACIÓN (perfil, seguridad y datos) ─────────────────
+function ModalConfiguracion({open,onClose,perfil,correo,onGuardarPerfil,onCambiarPin,onVerTour,onReset,onCerrarSesion}){
+  const[form,setForm]=useState({nombre:"",ocupacion:"Empleado/a",whatsapp:""});
+  const[confirmarReset,setConfirmarReset]=useState(false);
+  const[toast,setToast]=useState({visible:false,msg:""});
+  const[guardando,setGuardando]=useState(false);
+  useEffect(()=>{if(open)setForm({nombre:(perfil&&perfil.nombre)||"",ocupacion:(perfil&&perfil.ocupacion)||"Empleado/a",whatsapp:(perfil&&perfil.whatsapp)||""});},[open]);
+  const mostrarToast=msg=>{setToast({visible:true,msg});setTimeout(()=>setToast({visible:false,msg:""}),2500);};
+  const guardar=async()=>{
+    if(!form.nombre.trim()||!onGuardarPerfil)return;
+    setGuardando(true);
+    await onGuardarPerfil({nombre:form.nombre.trim(),ocupacion:form.ocupacion,whatsapp:form.whatsapp.trim()});
+    setGuardando(false);
+    mostrarToast("¡Datos guardados!");
+  };
+  const fila={width:"100%",background:"#f8fafc",border:"1px solid #DDE4EE",borderRadius:12,padding:"14px",fontSize:15,fontWeight:600,color:"#0a1c35",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:10,textAlign:"left"};
+  return <>
+    <Toast msg={toast.msg} visible={toast.visible}/>
+    <ConfirmModal open={confirmarReset}
+      onConfirm={()=>{onReset&&onReset();setConfirmarReset(false);onClose();}}
+      onCancel={()=>setConfirmarReset(false)}
+      texto="Se borrarán TODOS tus pagos, recordatorios, presupuesto, metas, compras y autos. Esta acción no se puede deshacer."/>
+    <Modal open={open} onClose={onClose} titulo="Configuración">
+      <div style={{fontSize:13,fontWeight:700,color:"#8FA0B4",marginBottom:12}}>MI PERFIL</div>
+      <Campo etiqueta="Tu nombre" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Tu nombre completo"/>
+      <Selector etiqueta="¿A qué te dedicas?" value={form.ocupacion} onChange={e=>setForm(p=>({...p,ocupacion:e.target.value}))} opciones={OCUPACIONES.map(o=>({v:o,l:o}))}/>
+      <Campo etiqueta="Tu WhatsApp" ayuda="Para avisos y cotizaciones" type="tel" value={form.whatsapp} onChange={e=>setForm(p=>({...p,whatsapp:e.target.value}))} placeholder="55 1234 5678"/>
+      {correo&&<div style={{marginBottom:16}}>
+        <div style={{fontSize:15,fontWeight:600,color:"#374151",marginBottom:5}}>Tu correo (es tu cuenta, no se puede cambiar aquí)</div>
+        <div style={{padding:"13px 14px",border:"1.5px solid #DDE4EE",borderRadius:10,fontSize:16,color:"#53647D",background:"#f8fafc"}}>{correo}</div>
+      </div>}
+      {onGuardarPerfil&&<BotonGrande onClick={guardar} disabled={!form.nombre.trim()||guardando} color="#10284A" icono="✅">{guardando?"Guardando...":"Guardar mis datos"}</BotonGrande>}
+      <div style={{height:1,background:"#DDE4EE",margin:"22px 0"}}/>
+      <div style={{fontSize:13,fontWeight:700,color:"#8FA0B4",marginBottom:12}}>SEGURIDAD Y MÁS</div>
+      {onCambiarPin&&<button style={fila} onClick={onCambiarPin}>🔑 Cambiar mi PIN o huella</button>}
+      <button style={fila} onClick={()=>{onClose();onVerTour();}}>🎬 Ver la guía de bienvenida</button>
+      <button style={{...fila,color:"#dc2626"}} onClick={()=>setConfirmarReset(true)}>🗑️ Borrar todos mis datos</button>
+      {onCerrarSesion&&<button style={{...fila,color:"#dc2626"}} onClick={onCerrarSesion}>Cerrar sesión</button>}
+    </Modal>
+  </>;
+}
+
 // ── APP PRINCIPAL ─────────────────────────────────────────────
-function AppPrincipal({onCerrarSesion}){
+function AppPrincipal({onCerrarSesion,perfil,correo,onGuardarPerfil,onCambiarPin}){
   const[pantalla,setPantalla]=useState("inicio");
   // Estado personal: se carga de localStorage o, si no existe, de los datos de ejemplo.
   const[recordatorios,setRecordatorios]=useState(()=>cargar("recordatorios",initRecordatorios));
@@ -2060,6 +2097,8 @@ function AppPrincipal({onCerrarSesion}){
   const[autos,setAutos]=useState(()=>cargar("autos",initAutos));
   const[menuAgregarAbierto,setMenuAgregarAbierto]=useState(false);
   const[accion,setAccion]=useState(null);
+  const[configAbierta,setConfigAbierta]=useState(false);
+  const[verTour,setVerTour]=useState(false);
 
   // Guarda automáticamente cada estado en localStorage cuando cambia.
   useEffect(()=>{try{localStorage.setItem("upco_recordatorios",JSON.stringify(recordatorios));}catch(e){}},[recordatorios]);
@@ -2108,7 +2147,7 @@ function AppPrincipal({onCerrarSesion}){
     inicio:<Inicio recordatorios={recordatorios} presupuesto={presupuesto} metas={metas} listas={listas} irA={irA}/>,
     dinero:<MiDinero recordatorios={recordatorios} setRecordatorios={setRecordatorios} presupuesto={presupuesto} setPresupuesto={setPresupuesto} metas={metas} setMetas={setMetas} listas={listas} setListas={setListas} accion={accion} onConsumirAccion={consumirAccion}/>,
     hogar:<MiHogar recordatorios={recordatorios} setRecordatorios={setRecordatorios} accion={accion} onConsumirAccion={consumirAccion}/>,
-    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onCerrarSesion={onCerrarSesion} onReset={reiniciarDatos}/>,
+    mas:<Mas autos={autos} setAutos={setAutos} irAMas={{accion,consumir:consumirAccion}} onAbrirConfig={()=>setConfigAbierta(true)}/>,
   };
 
   return <div style={{minHeight:"100vh",background:"#F4F7FB",fontFamily:"'Inter',-apple-system,sans-serif"}}>
@@ -2122,9 +2161,10 @@ function AppPrincipal({onCerrarSesion}){
       </div>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         {(urgentesDinero+urgentesHogar)>0&&<div style={{background:"#ef4444",color:"#fff",borderRadius:99,fontSize:12,fontWeight:700,padding:"3px 10px",boxShadow:"0 2px 8px rgba(239,68,68,.3)"}}>{urgentesDinero+urgentesHogar} urgente{(urgentesDinero+urgentesHogar)>1?"s":""}</div>}
-        <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#10284A,#1a3a6e)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,boxShadow:"0 3px 10px rgba(16,40,74,.22)"}}>
+        <button onClick={()=>setConfigAbierta(true)} title="Configuración"
+          style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#10284A,#1a3a6e)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,boxShadow:"0 3px 10px rgba(16,40,74,.22)",border:"none",cursor:"pointer",padding:0}}>
           {USUARIO.name.split(" ").map(w=>w[0]).slice(0,2).join("")}
-        </div>
+        </button>
       </div>
     </header>
 
@@ -2145,6 +2185,10 @@ function AppPrincipal({onCerrarSesion}){
 
     <BotonMasFlotante onAbrir={()=>setMenuAgregarAbierto(true)}/>
     <MenuAgregar open={menuAgregarAbierto} onClose={()=>setMenuAgregarAbierto(false)} onElegir={elegirAccion}/>
+    <ModalConfiguracion open={configAbierta} onClose={()=>setConfigAbierta(false)} perfil={perfil} correo={correo}
+      onGuardarPerfil={onGuardarPerfil} onCambiarPin={onCambiarPin} onVerTour={()=>setVerTour(true)}
+      onReset={reiniciarDatos} onCerrarSesion={onCerrarSesion}/>
+    {verTour&&<TourBienvenida onTerminar={()=>setVerTour(false)}/>}
 
     <nav style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #DDE4EE",display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.06)",paddingBottom:"env(safe-area-inset-bottom)"}}>
       {NAV.map(n=><button key={n.id} onClick={()=>setPantalla(n.id)}
@@ -2204,29 +2248,85 @@ function Login(){
   </div>;
 }
 
-// ── ONBOARDING (primer ingreso: nombre y WhatsApp) ────────────
-function Onboarding({user,onListo}){
-  const[nombre,setNombre]=useState("");
-  const[whatsapp,setWhatsapp]=useState("");
+// ── TOUR DE BIENVENIDA (pantallas del potencial) ──────────────
+function TourBienvenida({onTerminar}){
+  const SLIDES=[
+    {icono:"campana",titulo:"Tus pagos, bajo control",desc:"Registra tarjetas, servicios y seguros. Te avisamos antes de que venzan para que no pagues recargos."},
+    {icono:"grafico",titulo:"Presupuesto y metas de ahorro",desc:"Ve cuánto entra, cuánto sale, y cuánto te falta para lograr eso que quieres."},
+    {icono:"auto",titulo:"Tu auto al día",desc:"Hoy No Circula, verificación y mantenimiento. Y cotiza tu seguro con asesores UPCO."},
+    {icono:"cart",titulo:"Compras sin pasarte",desc:"Arma tu lista, palomea en la tienda con precios y promociones, y mira tus gastos por categoría."},
+    {icono:"escudo",titulo:"Tu información, protegida",desc:"Tus datos se guardan en tu teléfono con tu PIN o huella. Tú decides qué compartir con UPCO."},
+  ];
+  const[i,setI]=useState(0);
+  const s=SLIDES[i];const ultimo=i===SLIDES.length-1;
+  return <div style={{position:"fixed",inset:0,zIndex:3000,background:"linear-gradient(160deg,#10284A,#0a1c35)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+    <div style={{width:"100%",maxWidth:420,textAlign:"center"}}>
+      <div style={{width:110,height:110,borderRadius:"50%",background:"rgba(245,158,11,.12)",border:"2px solid rgba(245,158,11,.4)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 28px"}}>
+        <Ico name={s.icono} size={52} color="#F59E0B" stroke={1.8}/>
+      </div>
+      <div style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:12}}>{s.titulo}</div>
+      <div style={{fontSize:16,color:"#8FA0B4",lineHeight:1.6,minHeight:78}}>{s.desc}</div>
+      <div style={{display:"flex",justifyContent:"center",gap:8,margin:"26px 0"}}>
+        {SLIDES.map((_,j)=><div key={j} onClick={()=>setI(j)} style={{width:i===j?26:9,height:9,borderRadius:99,background:i===j?"#F59E0B":"rgba(255,255,255,.25)",cursor:"pointer",transition:"width .25s"}}/>)}
+      </div>
+      <button onClick={()=>ultimo?onTerminar():setI(i+1)}
+        style={{width:"100%",background:"#F59E0B",color:"#10284A",border:"none",borderRadius:14,padding:"16px",fontSize:17,fontWeight:800,cursor:"pointer"}}>
+        {ultimo?"¡Empezar!":"Siguiente →"}
+      </button>
+      {!ultimo&&<button onClick={onTerminar} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:14,padding:"14px",cursor:"pointer",marginTop:6}}>Saltar la guía</button>}
+    </div>
+  </div>;
+}
+
+const OCUPACIONES=["Empleado/a","Negocio propio","Profesionista independiente","Pensionado/a o jubilado/a","Me dedico al hogar","Otro"];
+
+// ── PRIMER INGRESO: tour + registro paso a paso ───────────────
+function PrimerIngreso({user,onListo}){
+  const[etapa,setEtapa]=useState("tour");
+  const[paso,setPaso]=useState(1);
+  const[form,setForm]=useState({nombre:"",ocupacion:"Empleado/a",whatsapp:""});
   const[cargando,setCargando]=useState(false);
+  const TOTAL=3;
   const guardar=async()=>{
-    if(!nombre.trim())return;
+    if(!form.nombre.trim())return;
     setCargando(true);
-    const perfil={id:user.id,nombre:nombre.trim(),whatsapp:whatsapp.trim(),correo:user.email};
-    try{ if(sb) await sb.from("usuarios").upsert(perfil); }catch(e){console.log("onboarding error",e);}
-    trackEvent("usuario_registrado",{nombre:perfil.nombre,whatsapp:perfil.whatsapp});
+    const perfil={id:user.id,nombre:form.nombre.trim(),ocupacion:form.ocupacion,whatsapp:form.whatsapp.trim(),correo:user.email};
+    try{ if(sb) await sb.from("usuarios").upsert(perfil); }catch(e){console.log("registro error",e);}
+    trackEvent("usuario_registrado",{nombre:perfil.nombre,ocupacion:perfil.ocupacion,whatsapp:perfil.whatsapp});
     setCargando(false);
     onListo(perfil);
   };
-  return <div style={{minHeight:"100vh",background:"#F4F7FB",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px"}}>
+  if(etapa==="tour")return <TourBienvenida onTerminar={()=>setEtapa("registro")}/>;
+  return <div style={{minHeight:"100vh",background:"#F4F7FB",display:"flex",flexDirection:"column",justifyContent:"center",padding:24}}>
     <div style={{maxWidth:440,margin:"0 auto",width:"100%"}}>
-      <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><Monograma size={56} radio={16}/></div>
-      <h2 style={{fontSize:22,fontWeight:800,color:"#0a1c35",textAlign:"center",marginBottom:6}}>¡Bienvenido! 👋</h2>
-      <p style={{fontSize:15,color:"#53647D",textAlign:"center",marginBottom:24,lineHeight:1.5}}>Cuéntanos cómo te llamas para personalizar tu experiencia.</p>
-      <div style={{background:"#fff",borderRadius:18,padding:"22px 20px",boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
-        <Campo etiqueta="¿Cómo te llamas?" value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre completo"/>
-        <Campo etiqueta="Tu WhatsApp (opcional)" ayuda="Para avisarte de tus pagos y enviarte cotizaciones" type="tel" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} placeholder="55 1234 5678"/>
-        <BotonGrande onClick={guardar} disabled={!nombre.trim()||cargando} color="#10284A" icono="✅">{cargando?"Guardando...":"Empezar a usar Upco Homey"}</BotonGrande>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Monograma size={56} radio={16}/></div>
+      <div style={{fontSize:13,fontWeight:700,color:"#8FA0B4",textAlign:"center",marginBottom:8}}>PASO {paso} DE {TOTAL}</div>
+      <div style={{maxWidth:220,margin:"0 auto 24px"}}><Barra valor={paso} max={TOTAL} color="#F59E0B" alto={6}/></div>
+      <div style={{background:"#fff",borderRadius:18,padding:"24px 20px",boxShadow:"0 4px 16px rgba(16,40,74,.07)"}}>
+        {paso===1&&<div>
+          <h2 style={{fontSize:21,fontWeight:800,color:"#0a1c35",marginBottom:6}}>¡Bienvenido! 👋</h2>
+          <p style={{fontSize:15,color:"#53647D",marginBottom:20,lineHeight:1.5}}>Empecemos por lo más importante: tu nombre.</p>
+          <Campo etiqueta="¿Cómo te llamas?" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Tu nombre completo"/>
+          <BotonGrande onClick={()=>form.nombre.trim()&&setPaso(2)} disabled={!form.nombre.trim()} color="#10284A">Continuar →</BotonGrande>
+        </div>}
+        {paso===2&&<div>
+          <h2 style={{fontSize:21,fontWeight:800,color:"#0a1c35",marginBottom:6}}>Mucho gusto, {form.nombre.trim().split(" ")[0]} 🙌</h2>
+          <p style={{fontSize:15,color:"#53647D",marginBottom:20,lineHeight:1.5}}>Cuéntanos a qué te dedicas — nos ayuda a recomendarte mejor.</p>
+          <Selector etiqueta="¿A qué te dedicas?" value={form.ocupacion} onChange={e=>setForm(p=>({...p,ocupacion:e.target.value}))} opciones={OCUPACIONES.map(o=>({v:o,l:o}))}/>
+          <BotonGrande onClick={()=>setPaso(3)} color="#10284A">Continuar →</BotonGrande>
+          <button onClick={()=>setPaso(1)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:14,padding:"12px",cursor:"pointer",marginTop:4}}>← Regresar</button>
+        </div>}
+        {paso===3&&<div>
+          <h2 style={{fontSize:21,fontWeight:800,color:"#0a1c35",marginBottom:6}}>¿Cómo te contactamos? 📱</h2>
+          <p style={{fontSize:15,color:"#53647D",marginBottom:20,lineHeight:1.5}}>Para avisarte de tus pagos y mandarte las cotizaciones que pidas.</p>
+          <Campo etiqueta="Tu WhatsApp" ayuda="10 dígitos, con lada" type="tel" value={form.whatsapp} onChange={e=>setForm(p=>({...p,whatsapp:e.target.value}))} placeholder="55 1234 5678"/>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#374151",marginBottom:5}}>Tu correo</div>
+            <div style={{padding:"13px 14px",border:"1.5px solid #DDE4EE",borderRadius:10,fontSize:16,color:"#53647D",background:"#f8fafc"}}>{user.email}</div>
+          </div>
+          <BotonGrande onClick={guardar} disabled={cargando} color="#10284A" icono="✅">{cargando?"Guardando...":"¡Listo, empezar a usar la app!"}</BotonGrande>
+          <button onClick={()=>setPaso(2)} style={{width:"100%",background:"none",border:"none",color:"#8FA0B4",fontSize:14,padding:"12px",cursor:"pointer",marginTop:4}}>← Regresar</button>
+        </div>}
       </div>
     </div>
   </div>;
@@ -2363,6 +2463,15 @@ function App(){
 
   const cerrarSesion=async()=>{try{if(sb)await sb.auth.signOut();}catch(e){}setPerfil(null);setPerfilCargado(false);setDesbloqueado(false);};
   const olvidoPin=async()=>{if(sesion)borrarLock(sesion.user.id);await cerrarSesion();};
+  // Guardar cambios del perfil (desde Configuración)
+  const guardarPerfil=async(datos)=>{
+    const nuevo={...(perfil||{}),...datos,id:sesion.user.id,correo:sesion.user.email};
+    try{ if(sb) await sb.from("usuarios").upsert(nuevo); }catch(e){console.log("guardar perfil error",e);}
+    setPerfil(nuevo);USUARIO.name=nuevo.nombre||USUARIO.name;
+    trackEvent("perfil_actualizado",{ocupacion:nuevo.ocupacion});
+  };
+  // Volver a configurar PIN/huella (borra el bloqueo y muestra la pantalla de configurarlo)
+  const cambiarPin=()=>{borrarLock(sesion.user.id);setDesbloqueado(false);};
 
   // Sin Supabase configurado: la app funciona sin login (modo local)
   if(!sb) return <AppPrincipal/>;
@@ -2373,14 +2482,14 @@ function App(){
   // Con sesión, esperando perfil
   if(!perfilCargado) return <div style={{minHeight:"100vh",background:"#F4F7FB"}}/>;
   // Con sesión pero sin perfil -> onboarding
-  if(!perfil) return <Onboarding user={sesion.user} onListo={p=>{setPerfil(p);USUARIO.name=p.nombre||USUARIO.name;}}/>;
+  if(!perfil) return <PrimerIngreso user={sesion.user} onListo={p=>{setPerfil(p);USUARIO.name=p.nombre||USUARIO.name;}}/>;
   USUARIO.name=perfil.nombre||USUARIO.name;
   // Bloqueo de la app: configurar (primera vez) o desbloquear (cada apertura)
   const lock=leerLock(sesion.user.id);
   if(!lock) return <ConfigurarBloqueo user={sesion.user} onListo={()=>setDesbloqueado(true)}/>;
   if(!desbloqueado) return <Desbloquear user={sesion.user} lock={lock} onOk={()=>setDesbloqueado(true)} onOlvido={olvidoPin}/>;
   // Todo listo y desbloqueado
-  return <AppPrincipal onCerrarSesion={cerrarSesion}/>;
+  return <AppPrincipal onCerrarSesion={cerrarSesion} perfil={perfil} correo={sesion.user.email} onGuardarPerfil={guardarPerfil} onCambiarPin={cambiarPin}/>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
