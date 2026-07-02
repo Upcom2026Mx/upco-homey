@@ -2045,9 +2045,10 @@ function MenuAgregar({open,onClose,onElegir}){
 }
 
 // ── CONFIGURACIÓN (perfil, seguridad y datos) ─────────────────
-function ModalConfiguracion({open,onClose,perfil,correo,onGuardarPerfil,onCambiarPin,onVerTour,onReset,onCerrarSesion}){
+function ModalConfiguracion({open,onClose,perfil,correo,onGuardarPerfil,onCambiarPin,onVerTour,onReset,onCerrarSesion,onDarseDeBaja}){
   const[form,setForm]=useState({nombre:"",ocupacion:"Empleado/a",whatsapp:""});
   const[confirmarReset,setConfirmarReset]=useState(false);
+  const[confirmarBaja,setConfirmarBaja]=useState(false);
   const[toast,setToast]=useState({visible:false,msg:""});
   const[guardando,setGuardando]=useState(false);
   useEffect(()=>{if(open)setForm({nombre:(perfil&&perfil.nombre)||"",ocupacion:(perfil&&perfil.ocupacion)||"Empleado/a",whatsapp:(perfil&&perfil.whatsapp)||""});},[open]);
@@ -2066,6 +2067,10 @@ function ModalConfiguracion({open,onClose,perfil,correo,onGuardarPerfil,onCambia
       onConfirm={()=>{onReset&&onReset();setConfirmarReset(false);onClose();}}
       onCancel={()=>setConfirmarReset(false)}
       texto="Se borrarán TODOS tus pagos, recordatorios, presupuesto, metas, compras y autos. Esta acción no se puede deshacer."/>
+    <ConfirmModal open={confirmarBaja}
+      onConfirm={()=>{setConfirmarBaja(false);onClose();onDarseDeBaja&&onDarseDeBaja();}}
+      onCancel={()=>setConfirmarBaja(false)}
+      texto="Te darás de baja de Upco Homey: se eliminarán tu perfil y todos tus datos de este dispositivo, y se cerrará tu sesión. Esta acción no se puede deshacer."/>
     <Modal open={open} onClose={onClose} titulo="Configuración">
       <div style={{fontSize:13,fontWeight:700,color:"#8FA0B4",marginBottom:12}}>MI PERFIL</div>
       <Campo etiqueta="Tu nombre" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Tu nombre completo"/>
@@ -2082,12 +2087,13 @@ function ModalConfiguracion({open,onClose,perfil,correo,onGuardarPerfil,onCambia
       <button style={fila} onClick={()=>{onClose();onVerTour();}}>🎬 Ver la guía de bienvenida</button>
       <button style={{...fila,color:"#dc2626"}} onClick={()=>setConfirmarReset(true)}>🗑️ Borrar todos mis datos</button>
       {onCerrarSesion&&<button style={{...fila,color:"#dc2626"}} onClick={onCerrarSesion}>Cerrar sesión</button>}
+      {onDarseDeBaja&&<button style={{...fila,color:"#dc2626",background:"#fef2f2",border:"1px solid #fca5a5"}} onClick={()=>setConfirmarBaja(true)}>Darme de baja (eliminar mi cuenta)</button>}
     </Modal>
   </>;
 }
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────
-function AppPrincipal({onCerrarSesion,perfil,correo,onGuardarPerfil,onCambiarPin}){
+function AppPrincipal({onCerrarSesion,perfil,correo,onGuardarPerfil,onCambiarPin,onDarseDeBaja}){
   const[pantalla,setPantalla]=useState("inicio");
   // Estado personal: se carga de localStorage o, si no existe, de los datos de ejemplo.
   const[recordatorios,setRecordatorios]=useState(()=>cargar("recordatorios",initRecordatorios));
@@ -2187,7 +2193,7 @@ function AppPrincipal({onCerrarSesion,perfil,correo,onGuardarPerfil,onCambiarPin
     <MenuAgregar open={menuAgregarAbierto} onClose={()=>setMenuAgregarAbierto(false)} onElegir={elegirAccion}/>
     <ModalConfiguracion open={configAbierta} onClose={()=>setConfigAbierta(false)} perfil={perfil} correo={correo}
       onGuardarPerfil={onGuardarPerfil} onCambiarPin={onCambiarPin} onVerTour={()=>setVerTour(true)}
-      onReset={reiniciarDatos} onCerrarSesion={onCerrarSesion}/>
+      onReset={reiniciarDatos} onCerrarSesion={onCerrarSesion} onDarseDeBaja={onDarseDeBaja}/>
     {verTour&&<TourBienvenida onTerminar={()=>setVerTour(false)}/>}
 
     <nav style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #DDE4EE",display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.06)",paddingBottom:"env(safe-area-inset-bottom)"}}>
@@ -2472,6 +2478,15 @@ function App(){
   };
   // Volver a configurar PIN/huella (borra el bloqueo y muestra la pantalla de configurarlo)
   const cambiarPin=()=>{borrarLock(sesion.user.id);setDesbloqueado(false);};
+  // Darse de baja: registra la solicitud, borra el perfil y los datos locales, y cierra sesión
+  const darseDeBaja=async()=>{
+    try{ await trackEvent("baja_solicitada",{correo:sesion.user.email}); }catch(e){}
+    try{ if(sb) await sb.from("usuarios").delete().eq("id",sesion.user.id); }catch(e){console.log("baja error",e);}
+    ["recordatorios","presupuesto","listas","metas","autos"].forEach(k=>{try{localStorage.removeItem("upco_"+k);}catch(e){}});
+    try{localStorage.removeItem("analytics_events");}catch(e){}
+    borrarLock(sesion.user.id);
+    await cerrarSesion();
+  };
 
   // Sin Supabase configurado: la app funciona sin login (modo local)
   if(!sb) return <AppPrincipal/>;
@@ -2489,7 +2504,7 @@ function App(){
   if(!lock) return <ConfigurarBloqueo user={sesion.user} onListo={()=>setDesbloqueado(true)}/>;
   if(!desbloqueado) return <Desbloquear user={sesion.user} lock={lock} onOk={()=>setDesbloqueado(true)} onOlvido={olvidoPin}/>;
   // Todo listo y desbloqueado
-  return <AppPrincipal onCerrarSesion={cerrarSesion} perfil={perfil} correo={sesion.user.email} onGuardarPerfil={guardarPerfil} onCambiarPin={cambiarPin}/>;
+  return <AppPrincipal onCerrarSesion={cerrarSesion} perfil={perfil} correo={sesion.user.email} onGuardarPerfil={guardarPerfil} onCambiarPin={cambiarPin} onDarseDeBaja={darseDeBaja}/>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
